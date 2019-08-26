@@ -1,0 +1,23 @@
+# rtos-port
+useful RTOS porting project to many architecture
+-build-
+1) bootloader compile for gimstix_config
+    - cd uboot
+    - make distclean
+	- make gumstix_config
+	- make
+
+2) install toolchain 
+	- use : tar xjf command
+    - arm-toolchain-cygwin32-gcc-4.9.2-newlib-2.1.0.tar.bz2 : for cygwin32
+	- arm-toolchain-cygwin64-gcc-4.8.0-newlib-2.0.0.tar.bz2 : for cygwin64
+	- arm-toolchain-linux_ubuntu16_04-gcc-5.4.0-glib-2.23.tar.bz2 : for ubuntu16.04(64bit)
+
+3) edit ucos.env /and atom.env for matching toolchain
+
+4) in cygwin case: install mtd utils for jffs2 files system
+   - git clone git@github.com:bk1472/mtd-utils-1.5.2-cygwin.git
+   - cd mtd-utils-1.5.2-cygwin
+   - make
+   - cp mkfs.jffs2.exe /usr/bin
+

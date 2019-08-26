@@ -1,0 +1,101 @@
+#
+#	ARM 컴파일러를 위한 Warning 메시지 필터 자료 화일
+#	작성 요령.
+#		1. 첫번째 문자가 '"', '-' 또는 0 에서 7까지의 숫자이어야 한다.
+#          각 숫자의 의미 
+#          0    : Warning Message를 무시하여 출력하지 않는다.
+#          1-7  : 지정된 색으로 강조하여 출력한다.
+#          음수 : Error로 취급하여, 컴파일을 중단시킨다.
+#		2. 문자열를 "xxx" 식으로 묶어야 함.
+#		3. Warning 문을 2 부분 또는 3부분으로 분할해서 기술한다.
+#
+#	숫자별 지정 색
+#  		0 : Black	1 : Red		2 : Greeen	3 : Yellow
+#		4 : Blue	5 : Magenta	6 : Cyan	7 : White
+#
+#
+
+#-------------------------------------------------------------------------------
+#	   gnu compiler 에서 error에 대해 출력하는 문자열들
+#-------------------------------------------------------------------------------
+	-3"parse error before" 					"`"					"'"
+	-3"duplicate case" 						"case"
+	-3"`"									"' undeclared"		"(first use in this function)"
+
+#-------------------------------------------------------------------------------
+#	   dtv_model.h 또는 명령행에서 반드시 정의되어야 할 마크로에 대한 처리
+#-------------------------------------------------------------------------------
+	-3"warning: " 							"MODEL_ID"			"is not defined"	
+	-3"warning: " 							"USE_UI"			"is not defined"	
+	-3"warning: " 							"USE_CM"			"is not defined"	
+	-3"warning: " 							"USE_PSIP"			"is not defined"	
+	-3"warning: " 							"USE_ACC"			"is not defined"	
+	-3"warning: " 							"USE_DCC"			"is not defined"	
+	-3"warning: " 							"USE_TUNER"			"is not defined"	
+	-3"warning: " 							"USE_OSAMEM"		"is not defined"	
+	-3"warning: " 							"USE_HIGH_VECTOR"	"is not defined"	
+	-3"warning: " 							"USE_CORTEZIF"		"is not defined"	
+	-3"warning: " 							"USE_ANALOGDEV"		"is not defined"	
+	-3"warning: " 							"TEST_USE_XXX"		"is not defined"	
+
+#-------------------------------------------------------------------------------
+#	   컴파일러/pSOS 환경에서 정의되지 않은 상태에서 사용되는 마크로들
+#-------------------------------------------------------------------------------
+	 0"warning: " 							"__cplusplus"		"is not defined"	
+	 0"warning: " 							"__DIAB"			"is not defined"	
+	 0"warning: " 							"GHS"				"is not defined"	
+	 0"warning: " 							"BSP_"				"is not defined"	
+	 0"warning: " 							"SC_"				"is not defined"	
+	 0"warning: " 							"PHILE"				"is not defined"	
+	 0"warning: " 							"NOT_USED"			"is not defined"	
+	 0"warning: " 							"NOT_DEF"			"is not defined"	
+
+#-------------------------------------------------------------------------------
+#	   types.h를 include 하지 않아서 발생하는 문제
+#-------------------------------------------------------------------------------
+	 5"warning: " 							"TRUE"				"is not defined"	
+	 0"warning: " 							"FALSE"				"is not defined"	
+
+#-------------------------------------------------------------------------------
+#	   그 이외의 정의되지 않는 마크로는 녹색.
+#-------------------------------------------------------------------------------
+	 2"warning: " 							"'"					"is not defined"	
+
+#-------------------------------------------------------------------------------
+#	   나머지 컴파일러 경고 메시지에 대한 처리들.
+#-------------------------------------------------------------------------------
+	 0"warning: argument and old-style"		"parameter mismatch"
+	 0"warning: cast of 'int' to"			" differing enum"
+	 0"warning: (possible error):"			">= 10 lines of macro arguments"
+	 0"warning: Superfluous"				"in 'enum' declaration"
+	 0"warning: character sequence"			"inside comment"
+	 2"warning: no side effect in"			"void context"
+	 0"warning: omitting trailing"			"for char"
+	 0"warning: trailing"					"continues comment"
+	 0"warning: function"					"declared but not used"	
+	 0"warning: typedef"					"declared but not used"
+#	 0"warning: static"						"declared but not used"
+	 0"warning: label"						"was defined but not used"
+	 0"warning: out-of-bound offset"		"in address"
+	 0"warning: implicit cast"				"overflow"
+	 0"warning: signed constant"			"overflow"
+	 0"warning: unsigned comparison with"	"is always"			"true"
+
+#-------------------------------------------------------------------------------
+#	   중요한 Warning, 수정해야 할 필요성이 높은 것들.
+#-------------------------------------------------------------------------------
+	 1"warning: unsigned comparison with"	"is always" 		"false"
+	 1"warning: use of"						"'='"				"in condition context"
+	 1"warning: "							" may be used"		"before being set"
+	 1"warning: "                           " redefined"
+	 1"warning: suggest parentheses"        "around"           
+	 1"warning: implicit declaration of"	"`"					"'"
+	 1"warning: "                           " might be used"	"uninitialized in this function"
+	 1"warning: `return'"                  	" with no value,"	"in function returning non-void"
+	 1"warning: unused variable"            "`"					"'"
+	 1"warning: "                  	        "'"					"' defined but not used"
+
+
+#-------------------------------------------------------------------------------
+#	 Error Message 출력(Error message는 기본으로 빨간색으로 출력함)
+#-------------------------------------------------------------------------------

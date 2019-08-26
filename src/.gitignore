@@ -1,0 +1,15 @@
+*.o
+*.d
+objs
+archives
+tags
+*.log
+*.bin
+*.sym
+frtos*
+ucos*
+atom*
+apps_name.mk
+endian.mk
+dummy.c
+.*.swp
