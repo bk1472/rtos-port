@@ -23,8 +23,8 @@ distclean : clobber
 	find . -type f \( -name apps_name.mk -o -name dummy.* -o -name endian.mk -o -name tags \) \
 		-print0 \
 		| xargs -0 rm -f
-	@$(MAKE) -C $(DUMPSYM_DIR) clobber
-	@$(MAKE) -C $(CCDV_DIR) clobber
+	@($(MAKE) -C $(DUMPSYM_DIR) clobber > /dev/null 2>&1)
+	@($(MAKE) -C $(CCDV_DIR) clobber > /dev/null 2>&1)
 else
 include $(TOP_DIR)/rules.mk
 endif

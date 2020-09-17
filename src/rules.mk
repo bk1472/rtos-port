@@ -165,10 +165,10 @@ endif
 
 $(UTIL_DIR)/ccdv$(EXT): $(CCDV_DIR)/ccdv.c $(CCDV_DIR)/sift-warn.c
 ifeq ($(MAKELEVEL), 0)
-	@$(MAKE) -C $(CCDV_DIR)
+	@($(MAKE) -C $(CCDV_DIR) > /dev/null 2>&1)
 endif
 
 $(UTIL_DIR)/dumpsym$(EXT):
 ifeq ($(MAKELEVEL), 0)
-	@$(MAKE) -C $(DUMPSYM_DIR) BUILD_MACH=$(BUILD_MACH)
+	@($(MAKE) -C $(DUMPSYM_DIR) BUILD_MACH=$(BUILD_MACH) > /dev/null 2>&1)
 endif
