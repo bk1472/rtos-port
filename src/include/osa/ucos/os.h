@@ -1,38 +1,29 @@
 /*
-************************************************************************************************************************
-*                                                      uC/OS-III
-*                                                 The Real-Time Kernel
+*********************************************************************************************************
+*                                              uC/OS-III
+*                                        The Real-Time Kernel
 *
-*                                  (c) Copyright 2009-2015; Micrium, Inc.; Weston, FL
-*                           All rights reserved.  Protected by international copyright laws.
+*                    Copyright 2009-2020 Silicon Laboratories Inc. www.silabs.com
 *
-* File    : OS.H
-* By      : JJL
-* Version : V3.05.01
+*                                 SPDX-License-Identifier: APACHE-2.0
 *
-* LICENSING TERMS:
-* ---------------
-*           uC/OS-III is provided in source form for FREE short-term evaluation, for educational use or
-*           for peaceful research.  If you plan or intend to use uC/OS-III in a commercial application/
-*           product then, you need to contact Micrium to properly license uC/OS-III for its use in your
-*           application/product.   We provide ALL the source code for your convenience and to help you
-*           experience uC/OS-III.  The fact that the source is provided does NOT mean that you can use
-*           it commercially without paying a licensing fee.
+*               This software is subject to an open source license and is distributed by
+*                Silicon Laboratories Inc. pursuant to the terms of the Apache License,
+*                    Version 2.0 available at www.apache.org/licenses/LICENSE-2.0.
 *
-*           Knowledge of the source code may NOT be used to develop a similar product.
+*********************************************************************************************************
+*/
+
+/*
+*********************************************************************************************************
+* File    : os.h
+* Version : V3.08.00
+*********************************************************************************************************
+* Note(s) : (1) Assumes the following versions (or more recent) of software modules are included
+*               in the project build:
 *
-*           Please help us continue to provide the embedded community with the finest software available.
-*           Your honesty is greatly appreciated.
-*
-*           You can find our product's user manual, API reference, release notes and
-*           more information at https://doc.micrium.com.
-*           You can contact us at www.micrium.com.
-************************************************************************************************************************
-* Note(s) : (1) Assumes the following versions (or more recent) of software modules are included in the project build:
-*
-*               (a) uC/LIB V1.36.01
-*               (b) uC/CPU V1.30.02
-************************************************************************************************************************
+*               (a) uC/CPU V1.31.00
+*********************************************************************************************************
 */
 
 #ifndef   OS_H
@@ -44,7 +35,7 @@
 ************************************************************************************************************************
 */
 
-#define  OS_VERSION  30501u                       /* Version of uC/OS-III (Vx.yy.zz mult. by 10000)                   */
+#define  OS_VERSION  30800u                       /* Version of uC/OS-III (Vx.yy.zz mult. by 10000)                   */
 
 /*
 ************************************************************************************************************************
@@ -55,13 +46,14 @@
 #include <os_cfg.h>
 #include <os_cfg_app.h>
 #include <cpu_core.h>
-#include <lib_def.h>
 #include "os_type.h"
 #include <os_cpu.h>
-#if     (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-#include <trace_os.h>
-#endif
+#include "os_trace.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
 ************************************************************************************************************************
@@ -69,28 +61,16 @@
 ************************************************************************************************************************
 */
 
-#ifndef OS_CFG_MON_EN
-#define  OS_CFG_MON_EN                   DEF_DISABLED
-#endif
-
-#ifndef OS_CFG_MON_DEL_EN
-#define  OS_CFG_MON_DEL_EN               DEF_DISABLED
-#endif
-
-#ifndef OS_CFG_TASK_TICK_EN
-#define  OS_CFG_TASK_TICK_EN             DEF_ENABLED
-#endif
-
 #ifndef OS_CFG_TASK_IDLE_EN
-#define  OS_CFG_TASK_IDLE_EN             DEF_ENABLED
+#define  OS_CFG_TASK_IDLE_EN             1u
 #endif
 
 #ifndef OS_CFG_TASK_STK_REDZONE_EN
-#define  OS_CFG_TASK_STK_REDZONE_EN      DEF_DISABLED
+#define  OS_CFG_TASK_STK_REDZONE_EN      0u
 #endif
 
 #ifndef OS_CFG_INVALID_OS_CALLS_CHK_EN
-#define  OS_CFG_INVALID_OS_CALLS_CHK_EN  DEF_DISABLED
+#define  OS_CFG_INVALID_OS_CALLS_CHK_EN  0u
 #endif
 
 
@@ -101,82 +81,19 @@
 */
 
 
-#if      OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u && defined(CPU_CFG_INT_DIS_MEAS_EN)
+#if      (OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u) && defined(CPU_CFG_INT_DIS_MEAS_EN)
 #define  OS_SCHED_LOCK_TIME_MEAS_START()    OS_SchedLockTimeMeasStart()
 #else
 #define  OS_SCHED_LOCK_TIME_MEAS_START()
 #endif
 
 
-#if      OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u && defined(CPU_CFG_INT_DIS_MEAS_EN)
+#if      (OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u) && defined(CPU_CFG_INT_DIS_MEAS_EN)
 #define  OS_SCHED_LOCK_TIME_MEAS_STOP()     OS_SchedLockTimeMeasStop()
 #else
 #define  OS_SCHED_LOCK_TIME_MEAS_STOP()
 #endif
 
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)                 /* Deferred ISR Posts ------------------------------ */
-                                                                 /* Lock the scheduler                                */
-#define  OS_CRITICAL_ENTER()                                       \
-         do {                                                      \
-             CPU_CRITICAL_ENTER();                                 \
-             OSSchedLockNestingCtr++;                              \
-             if (OSSchedLockNestingCtr == 1u) {                    \
-                 OS_SCHED_LOCK_TIME_MEAS_START();                  \
-             }                                                     \
-             CPU_CRITICAL_EXIT();                                  \
-         } while (0)
-                                                                 /* Lock the scheduler but re-enable interrupts       */
-#define  OS_CRITICAL_ENTER_CPU_EXIT()                              \
-         do {                                                      \
-             OSSchedLockNestingCtr++;                              \
-                                                                   \
-             if (OSSchedLockNestingCtr == 1u) {                    \
-                 OS_SCHED_LOCK_TIME_MEAS_START();                  \
-             }                                                     \
-             CPU_CRITICAL_EXIT();                                  \
-         } while (0)
-
-                                                                 /* Scheduling occurs only if an interrupt occurs     */
-#define  OS_CRITICAL_EXIT()                                        \
-         do {                                                      \
-             CPU_CRITICAL_ENTER();                                 \
-             OSSchedLockNestingCtr--;                              \
-             if (OSSchedLockNestingCtr == (OS_NESTING_CTR)0) {     \
-                 OS_SCHED_LOCK_TIME_MEAS_STOP();                   \
-                 if (OSIntQNbrEntries > (OS_OBJ_QTY)0) {           \
-                     CPU_CRITICAL_EXIT();                          \
-                     OS_Sched0();                                  \
-                 } else {                                          \
-                     CPU_CRITICAL_EXIT();                          \
-                 }                                                 \
-             } else {                                              \
-                 CPU_CRITICAL_EXIT();                              \
-             }                                                     \
-         } while (0)
-
-#define  OS_CRITICAL_EXIT_NO_SCHED()                               \
-         do {                                                      \
-             CPU_CRITICAL_ENTER();                                 \
-             OSSchedLockNestingCtr--;                              \
-             if (OSSchedLockNestingCtr == (OS_NESTING_CTR)0) {     \
-                 OS_SCHED_LOCK_TIME_MEAS_STOP();                   \
-             }                                                     \
-             CPU_CRITICAL_EXIT();                                  \
-         } while (0)
-
-
-#else                                                            /* Direct ISR Posts -------------------------------- */
-
-
-#define  OS_CRITICAL_ENTER()                    CPU_CRITICAL_ENTER()
-
-#define  OS_CRITICAL_ENTER_CPU_EXIT()
-
-#define  OS_CRITICAL_EXIT()                     CPU_CRITICAL_EXIT()
-
-#define  OS_CRITICAL_EXIT_NO_SCHED()            CPU_CRITICAL_EXIT()
-
-#endif
 
 /*
 ************************************************************************************************************************
@@ -190,13 +107,19 @@
 #define  OS_EXT  extern
 #endif
 
+#ifndef  OS_FALSE
+#define  OS_FALSE                       0u
+#endif
 
-#define  OS_PRIO_TBL_SIZE          ((OS_CFG_PRIO_MAX - 1u) / (DEF_INT_CPU_NBR_BITS) + 1u)
+#ifndef  OS_TRUE
+#define  OS_TRUE                        1u
+#endif
 
-#define  OS_MSG_EN                 (((OS_CFG_TASK_Q_EN == DEF_ENABLED) || (OS_CFG_Q_EN == DEF_ENABLED)) ? DEF_ENABLED : DEF_DISABLED)
+#define  OS_PRIO_TBL_SIZE          (((OS_CFG_PRIO_MAX - 1u) / ((CPU_CFG_DATA_SIZE * 8u))) + 1u)
 
-#define  OS_OBJ_TYPE_REQ           (((OS_CFG_DBG_EN == DEF_ENABLED) || (OS_CFG_OBJ_TYPE_CHK_EN == DEF_ENABLED) || (OS_CFG_PEND_MULTI_EN == DEF_ENABLED) \
-                                   || (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)) ? DEF_ENABLED : DEF_DISABLED)
+#define  OS_MSG_EN                 (((OS_CFG_TASK_Q_EN > 0u) || (OS_CFG_Q_EN > 0u)) ? 1u : 0u)
+
+#define  OS_OBJ_TYPE_REQ           (((OS_CFG_DBG_EN > 0u) || (OS_CFG_OBJ_TYPE_CHK_EN > 0u)) ? 1u : 0u)
 
 
 /*
@@ -243,12 +166,11 @@
 #define  OS_TASK_PEND_ON_NOTHING              (OS_STATE)(  0u)  /* Pending on nothing                                 */
 #define  OS_TASK_PEND_ON_FLAG                 (OS_STATE)(  1u)  /* Pending on event flag group                        */
 #define  OS_TASK_PEND_ON_TASK_Q               (OS_STATE)(  2u)  /* Pending on message to be sent to task              */
-#define  OS_TASK_PEND_ON_MULTI                (OS_STATE)(  3u)  /* Pending on multiple semaphores and/or queues       */
+#define  OS_TASK_PEND_ON_COND                 (OS_STATE)(  3u)  /* Pending on condition variable                      */
 #define  OS_TASK_PEND_ON_MUTEX                (OS_STATE)(  4u)  /* Pending on mutual exclusion semaphore              */
 #define  OS_TASK_PEND_ON_Q                    (OS_STATE)(  5u)  /* Pending on queue                                   */
 #define  OS_TASK_PEND_ON_SEM                  (OS_STATE)(  6u)  /* Pending on semaphore                               */
 #define  OS_TASK_PEND_ON_TASK_SEM             (OS_STATE)(  7u)  /* Pending on signal  to be sent to task              */
-#define  OS_TASK_PEND_ON_COND_VAR             (OS_STATE)(  8u)  /* Pending on condition variable                      */
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -276,14 +198,9 @@
 #define  OS_OBJ_TYPE_FLAG                    (OS_OBJ_TYPE)CPU_TYPE_CREATE('F', 'L', 'A', 'G')
 #define  OS_OBJ_TYPE_MEM                     (OS_OBJ_TYPE)CPU_TYPE_CREATE('M', 'E', 'M', ' ')
 #define  OS_OBJ_TYPE_MUTEX                   (OS_OBJ_TYPE)CPU_TYPE_CREATE('M', 'U', 'T', 'X')
+#define  OS_OBJ_TYPE_COND                    (OS_OBJ_TYPE)CPU_TYPE_CREATE('C', 'O', 'N', 'D')
 #define  OS_OBJ_TYPE_Q                       (OS_OBJ_TYPE)CPU_TYPE_CREATE('Q', 'U', 'E', 'U')
 #define  OS_OBJ_TYPE_SEM                     (OS_OBJ_TYPE)CPU_TYPE_CREATE('S', 'E', 'M', 'A')
-#define  OS_OBJ_TYPE_MON                     (OS_OBJ_TYPE)CPU_TYPE_CREATE('M', 'O', 'N', ' ')
-#define  OS_OBJ_TYPE_TASK_MSG                (OS_OBJ_TYPE)CPU_TYPE_CREATE('T', 'M', 'S', 'G')
-#define  OS_OBJ_TYPE_TASK_RESUME             (OS_OBJ_TYPE)CPU_TYPE_CREATE('T', 'R', 'E', 'S')
-#define  OS_OBJ_TYPE_TASK_SIGNAL             (OS_OBJ_TYPE)CPU_TYPE_CREATE('T', 'S', 'I', 'G')
-#define  OS_OBJ_TYPE_TASK_SUSPEND            (OS_OBJ_TYPE)CPU_TYPE_CREATE('T', 'S', 'U', 'S')
-#define  OS_OBJ_TYPE_TICK                    (OS_OBJ_TYPE)CPU_TYPE_CREATE('T', 'I', 'C', 'K')
 #define  OS_OBJ_TYPE_TMR                     (OS_OBJ_TYPE)CPU_TYPE_CREATE('T', 'M', 'R', ' ')
 
 /*
@@ -374,24 +291,24 @@
 ------------------------------------------------------------------------------------------------------------------------
 */
 
-#define  OS_OPT_TIME_DLY                             DEF_BIT_NONE
-#define  OS_OPT_TIME_TIMEOUT                ((OS_OPT)DEF_BIT_01)
-#define  OS_OPT_TIME_MATCH                  ((OS_OPT)DEF_BIT_02)
-#define  OS_OPT_TIME_PERIODIC               ((OS_OPT)DEF_BIT_03)
+#define  OS_OPT_TIME_DLY                             0x00u
+#define  OS_OPT_TIME_TIMEOUT                ((OS_OPT)0x02u)
+#define  OS_OPT_TIME_MATCH                  ((OS_OPT)0x04u)
+#define  OS_OPT_TIME_PERIODIC               ((OS_OPT)0x08u)
 
-#define  OS_OPT_TIME_HMSM_STRICT            ((OS_OPT)DEF_BIT_NONE)
-#define  OS_OPT_TIME_HMSM_NON_STRICT        ((OS_OPT)DEF_BIT_04)
+#define  OS_OPT_TIME_HMSM_STRICT            ((OS_OPT)0x00u)
+#define  OS_OPT_TIME_HMSM_NON_STRICT        ((OS_OPT)0x10u)
 
 #define  OS_OPT_TIME_MASK                   ((OS_OPT)(OS_OPT_TIME_DLY      | \
                                                       OS_OPT_TIME_TIMEOUT  | \
                                                       OS_OPT_TIME_PERIODIC | \
                                                       OS_OPT_TIME_MATCH))
 
-#define  OS_OPT_TIME_OPTS_MASK                       (OS_OPT_TIME_DLY            | \
+#define  OS_OPT_TIME_OPTS_MASK              ((OS_OPT)(OS_OPT_TIME_DLY            | \
                                                       OS_OPT_TIME_TIMEOUT        | \
                                                       OS_OPT_TIME_PERIODIC       | \
                                                       OS_OPT_TIME_MATCH          | \
-                                                      OS_OPT_TIME_HMSM_NON_STRICT)
+                                                      OS_OPT_TIME_HMSM_NON_STRICT))
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -417,6 +334,7 @@
 #define  OS_TMR_STATE_STOPPED                   (OS_STATE)(1u)
 #define  OS_TMR_STATE_RUNNING                   (OS_STATE)(2u)
 #define  OS_TMR_STATE_COMPLETED                 (OS_STATE)(3u)
+#define  OS_TMR_STATE_TIMEOUT                   (OS_STATE)(4u)
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -428,36 +346,7 @@
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
-*                                                 TIMER TICK THRESHOLDS
-------------------------------------------------------------------------------------------------------------------------
-*/
-                                                                    /* Threshold to init previous tick time           */
-#define  OS_TICK_TH_INIT                    (OS_TICK)(DEF_BIT       ((sizeof(OS_TICK) * DEF_OCTET_NBR_BITS) - 1u))
-
-                                                                    /* Threshold to check if tick time already ready  */
-#define  OS_TICK_TH_RDY                     (OS_TICK)(DEF_BIT_FIELD(((sizeof(OS_TICK) * DEF_OCTET_NBR_BITS) / 2u), \
-                                                                    ((sizeof(OS_TICK) * DEF_OCTET_NBR_BITS) / 2u)))
-
-
-/*
-------------------------------------------------------------------------------------------------------------------------
-*                                                   MONITOR RESULTS
-------------------------------------------------------------------------------------------------------------------------
-*/
-
-#define  OS_MON_RES_ALLOW                   (OS_MON_RES)(0x0000u)
-#define  OS_MON_RES_BLOCK                   (OS_MON_RES)(0x0001u)
-#define  OS_MON_RES_STOP_EVAL               (OS_MON_RES)(0x0002u)
-#define  OS_MON_RES_ACQUIRE                 (OS_MON_RES)(0x0004u)
-#define  OS_MON_RES_RELEASE                 (OS_MON_RES)(0x0008u)
-#define  OS_MON_RES_SUBSCRIBE               (OS_MON_RES)(0x0010u)
-#define  OS_MON_RES_UNSUBSCRIBE             (OS_MON_RES)(0x0020u)
-#define  OS_MON_RES_TRY_FAIL                (OS_MON_RES)(0x0040u)
-
-
-/*
-------------------------------------------------------------------------------------------------------------------------
-*                                                   STACK REDZONE
+*                                                     STACK REDZONE
 ------------------------------------------------------------------------------------------------------------------------
 */
 
@@ -509,11 +398,7 @@ typedef  enum  os_err {
 
     OS_ERR_I                         = 18000u,
     OS_ERR_ILLEGAL_CREATE_RUN_TIME   = 18001u,
-    OS_ERR_INT_Q                     = 18002u,
-    OS_ERR_INT_Q_FULL                = 18003u,
-    OS_ERR_INT_Q_SIZE                = 18004u,
-    OS_ERR_INT_Q_STK_INVALID         = 18005u,
-    OS_ERR_INT_Q_STK_SIZE_INVALID    = 18006u,
+
     OS_ERR_ILLEGAL_DEL_RUN_TIME      = 18007u,
 
     OS_ERR_J                         = 19000u,
@@ -610,6 +495,7 @@ typedef  enum  os_err {
     OS_ERR_STK_INVALID               = 28207u,
     OS_ERR_STK_SIZE_INVALID          = 28208u,
     OS_ERR_STK_LIMIT_INVALID         = 28209u,
+    OS_ERR_STK_OVF                   = 28210u,
 
     OS_ERR_T                         = 29000u,
     OS_ERR_TASK_CHANGE_PRIO_ISR      = 29001u,
@@ -649,6 +535,7 @@ typedef  enum  os_err {
     OS_ERR_TICK_STK_INVALID          = 29202u,
     OS_ERR_TICK_STK_SIZE_INVALID     = 29203u,
     OS_ERR_TICK_WHEEL_SIZE           = 29204u,
+    OS_ERR_TICK_DISABLED             = 29205u,
 
     OS_ERR_TIME_DLY_ISR              = 29301u,
     OS_ERR_TIME_DLY_RESUME_ISR       = 29302u,
@@ -711,20 +598,13 @@ typedef  struct  os_msg_q            OS_MSG_Q;
 
 typedef  struct  os_mutex            OS_MUTEX;
 
-typedef  struct  os_int_q            OS_INT_Q;
+typedef  struct  os_cond             OS_COND;
 
 typedef  struct  os_q                OS_Q;
-
-typedef  struct  os_mon              OS_MON;
-typedef  struct  os_mon_data         OS_MON_DATA;
-typedef  struct  os_mon_ctx          OS_MON_CTX;
 
 typedef  struct  os_sem              OS_SEM;
 
 typedef  void                      (*OS_TASK_PTR)(void *p_arg);
-
-typedef  OS_MON_RES                (*OS_MON_ON_ENTER_PTR)(OS_MON *p_mon, void *p_data);
-typedef  OS_MON_RES                (*OS_MON_ON_EVAL_PTR)(OS_MON *p_mon, void *p_eval_data, void *p_scan_data);
 
 typedef  struct  os_tcb              OS_TCB;
 
@@ -745,11 +625,10 @@ typedef  struct  os_tick_list        OS_TICK_LIST;
 typedef  void                      (*OS_TMR_CALLBACK_PTR)(void *p_tmr, void *p_arg);
 typedef  struct  os_tmr              OS_TMR;
 
-typedef  struct  os_pend_data        OS_PEND_DATA;
 typedef  struct  os_pend_list        OS_PEND_LIST;
 typedef  struct  os_pend_obj         OS_PEND_OBJ;
 
-#if (OS_CFG_APP_HOOKS_EN == DEF_ENABLED)
+#if (OS_CFG_APP_HOOKS_EN > 0u)
 typedef  void                      (*OS_APP_HOOK_VOID)(void);
 typedef  void                      (*OS_APP_HOOK_TCB)(OS_TCB *p_tcb);
 #endif
@@ -765,27 +644,6 @@ typedef  void                      (*OS_APP_HOOK_TCB)(OS_TCB *p_tcb);
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
-*                                                    ISR POST DATA
-------------------------------------------------------------------------------------------------------------------------
-*/
-
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)
-struct  os_int_q {
-    OS_OBJ_TYPE          Type;                              /* Type of object placed in the circular list             */
-    OS_INT_Q            *NextPtr;                           /* Pointer to next OS_INT_Q in  circular list             */
-    void                *ObjPtr;                            /* Pointer to object placed in the queue                  */
-    void                *MsgPtr;                            /* Pointer to message if posting to a message queue       */
-    OS_MSG_SIZE          MsgSize;                           /* Message Size       if posting to a message queue       */
-    OS_FLAGS             Flags;                             /* Value of flags if posting to an event flag group       */
-    OS_OPT               Opt;                               /* Post Options                                           */
-#if (OS_CFG_TS_EN == DEF_ENABLED)
-    CPU_TS               TS;                                /* Timestamp                                              */
-#endif
-};
-#endif
-
-/*
-------------------------------------------------------------------------------------------------------------------------
 *                                                      READY LIST
 ------------------------------------------------------------------------------------------------------------------------
 */
@@ -793,7 +651,7 @@ struct  os_int_q {
 struct  os_rdy_list {
     OS_TCB              *HeadPtr;                           /* Pointer to task that will run at selected priority     */
     OS_TCB              *TailPtr;                           /* Pointer to last task          at selected priority     */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_OBJ_QTY           NbrEntries;                        /* Number of entries             at selected priority     */
 #endif
 };
@@ -801,28 +659,14 @@ struct  os_rdy_list {
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
-*                                                PEND DATA and PEND LIST
+*                                                      PEND LIST
 ------------------------------------------------------------------------------------------------------------------------
 */
 
-struct  os_pend_data {
-    OS_PEND_DATA        *PrevPtr;
-    OS_PEND_DATA        *NextPtr;
-    OS_TCB              *TCBPtr;
-    OS_PEND_OBJ         *PendObjPtr;
-    OS_PEND_OBJ         *RdyObjPtr;
-    void                *RdyMsgPtr;
-    OS_MSG_SIZE          RdyMsgSize;
-#if (OS_CFG_TS_EN == DEF_ENABLED)
-    CPU_TS               RdyTS;
-#endif
-};
-
-
 struct  os_pend_list {
-    OS_PEND_DATA        *HeadPtr;
-    OS_PEND_DATA        *TailPtr;
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+    OS_TCB              *HeadPtr;
+    OS_TCB              *TailPtr;
+#if (OS_CFG_DBG_EN > 0u)
     OS_OBJ_QTY           NbrEntries;
 #endif
 };
@@ -844,14 +688,14 @@ struct  os_pend_list {
 */
 
 struct  os_pend_obj {
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;
 #endif
     OS_PEND_LIST         PendList;                          /* List of tasks pending on object                        */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     void                *DbgPrevPtr;
     void                *DbgNextPtr;
     CPU_CHAR            *DbgNamePtr;
@@ -870,25 +714,25 @@ struct  os_pend_obj {
 
 struct  os_flag_grp {                                       /* Event Flag Group                                       */
                                                             /* ------------------ GENERIC  MEMBERS ------------------ */
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_FLAG                      */
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;                           /* Pointer to Event Flag Name (NUL terminated ASCII)      */
 #endif
     OS_PEND_LIST         PendList;                          /* List of tasks waiting on event flag group              */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_FLAG_GRP         *DbgPrevPtr;
     OS_FLAG_GRP         *DbgNextPtr;
     CPU_CHAR            *DbgNamePtr;
 #endif
                                                             /* ------------------ SPECIFIC MEMBERS ------------------ */
     OS_FLAGS             Flags;                             /* 8, 16 or 32 bit flags                                  */
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
     CPU_TS               TS;                                /* Timestamp of when last post occurred                   */
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT32U           FlagID;                            /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           FlagID;                            /* Unique ID for third-party debuggers and tracers.       */
 #endif
 };
 
@@ -901,10 +745,10 @@ struct  os_flag_grp {                                       /* Event Flag Group 
 
 
 struct os_mem {                                             /* MEMORY CONTROL BLOCK                                   */
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_MEM                       */
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;
 #endif
     void                *AddrPtr;                           /* Pointer to beginning of memory partition               */
@@ -912,12 +756,12 @@ struct os_mem {                                             /* MEMORY CONTROL BL
     OS_MEM_SIZE          BlkSize;                           /* Size (in bytes) of each block of memory                */
     OS_MEM_QTY           NbrMax;                            /* Total number of blocks in this partition               */
     OS_MEM_QTY           NbrFree;                           /* Number of memory blocks remaining in this partition    */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_MEM              *DbgPrevPtr;
     OS_MEM              *DbgNextPtr;
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT32U           MemID;                             /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           MemID;                             /* Unique ID for third-party debuggers and tracers.       */
 #endif
 };
 
@@ -932,7 +776,7 @@ struct  os_msg {                                            /* MESSAGE CONTROL B
     OS_MSG              *NextPtr;                           /* Pointer to next message                                */
     void                *MsgPtr;                            /* Actual message                                         */
     OS_MSG_SIZE          MsgSize;                           /* Size of the message (in # bytes)                       */
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
     CPU_TS               MsgTS;                             /* Time stamp of when message was sent                    */
 #endif
 };
@@ -944,7 +788,7 @@ struct  os_msg_pool {                                       /* OS_MSG POOL      
     OS_MSG              *NextPtr;                           /* Pointer to next message                                */
     OS_MSG_QTY           NbrFree;                           /* Number of messages available from this pool            */
     OS_MSG_QTY           NbrUsed;                           /* Current number of messages used                        */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_MSG_QTY           NbrUsedMax;                        /* Peak number of messages used                           */
 #endif
 };
@@ -956,11 +800,11 @@ struct  os_msg_q {                                          /* OS_MSG_Q         
     OS_MSG              *OutPtr;                            /* Pointer to next OS_MSG to be extracted from the queue  */
     OS_MSG_QTY           NbrEntriesSize;                    /* Maximum allowable number of entries in the queue       */
     OS_MSG_QTY           NbrEntries;                        /* Current number of entries in the queue                 */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_MSG_QTY           NbrEntriesMax;                     /* Peak number of entries in the queue                    */
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT32U           MsgQID;                            /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           MsgQID;                            /* Unique ID for third-party debuggers and tracers.       */
 #endif
 };
 
@@ -975,14 +819,14 @@ struct  os_msg_q {                                          /* OS_MSG_Q         
 
 struct  os_mutex {                                          /* Mutual Exclusion Semaphore                             */
                                                             /* ------------------ GENERIC  MEMBERS ------------------ */
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_MUTEX                     */
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;                           /* Pointer to Mutex Name (NUL terminated ASCII)           */
 #endif
     OS_PEND_LIST         PendList;                          /* List of tasks waiting on mutex                         */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_MUTEX            *DbgPrevPtr;
     OS_MUTEX            *DbgNextPtr;
     CPU_CHAR            *DbgNamePtr;
@@ -991,12 +835,39 @@ struct  os_mutex {                                          /* Mutual Exclusion 
     OS_MUTEX            *MutexGrpNextPtr;
     OS_TCB              *OwnerTCBPtr;
     OS_NESTING_CTR       OwnerNestingCtr;                   /* Mutex is available when the counter is 0               */
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
     CPU_TS               TS;
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT08U           MutexID;                           /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           MutexID;                           /* Unique ID for third-party debuggers and tracers.       */
 #endif
+};
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------
+*                                                  CONDITION VARIABLES
+*
+* Note(s) : See  PEND OBJ  Note #1'.
+------------------------------------------------------------------------------------------------------------------------
+*/
+
+struct  os_cond {                                           /* Condition Variable                                     */
+                                                            /* ------------------ GENERIC  MEMBERS ------------------ */
+#if (OS_OBJ_TYPE_REQ > 0u)
+    OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_COND                      */
+#endif
+#if (OS_CFG_DBG_EN > 0u)
+    CPU_CHAR            *NamePtr;                           /* Pointer to Mutex Name (NUL terminated ASCII)           */
+#endif
+    OS_PEND_LIST         PendList;                          /* List of tasks waiting on condition variable            */
+#if (OS_CFG_DBG_EN > 0u)
+    void                *DbgPrevPtr;
+    void                *DbgNextPtr;
+    CPU_CHAR            *DbgNamePtr;
+#endif
+                                                            /* ------------------ SPECIFIC MEMBERS ------------------ */
+    OS_MUTEX            *Mutex;                             /* Mutex bound to the condition variable.                 */
 };
 
 
@@ -1010,23 +881,20 @@ struct  os_mutex {                                          /* Mutual Exclusion 
 
 struct  os_q {                                              /* Message Queue                                          */
                                                             /* ------------------ GENERIC  MEMBERS ------------------ */
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_Q                         */
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;                           /* Pointer to Message Queue Name (NUL terminated ASCII)   */
 #endif
     OS_PEND_LIST         PendList;                          /* List of tasks waiting on message queue                 */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_Q                *DbgPrevPtr;
     OS_Q                *DbgNextPtr;
     CPU_CHAR            *DbgNamePtr;
 #endif
                                                             /* ------------------ SPECIFIC MEMBERS ------------------ */
     OS_MSG_Q             MsgQ;                              /* List of messages                                       */
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT08U           MsgQID;                            /* Unique ID for third-party debuggers and tracers.       */
-#endif
 };
 
 
@@ -1040,58 +908,26 @@ struct  os_q {                                              /* Message Queue    
 
 struct  os_sem {                                            /* Semaphore                                              */
                                                             /* ------------------ GENERIC  MEMBERS ------------------ */
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_SEM                       */
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;                           /* Pointer to Semaphore Name (NUL terminated ASCII)       */
 #endif
     OS_PEND_LIST         PendList;                          /* List of tasks waiting on semaphore                     */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_SEM              *DbgPrevPtr;
     OS_SEM              *DbgNextPtr;
     CPU_CHAR            *DbgNamePtr;
 #endif
                                                             /* ------------------ SPECIFIC MEMBERS ------------------ */
     OS_SEM_CTR           Ctr;
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
     CPU_TS               TS;
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT08U           SemID;                             /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           SemID;                             /* Unique ID for third-party debuggers and tracers.       */
 #endif
-};
-
-
-
-struct  os_mon {                                            /* Monitor                                                */
-                                                            /* ------------------ GENERIC  MEMBERS ------------------ */
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
-    OS_OBJ_TYPE          Type;                              /* Should be set to OS_OBJ_TYPE_MON                       */
-#endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
-    CPU_CHAR            *NamePtr;                           /* Pointer to Semaphore Name (NUL terminated ASCII)       */
-#endif
-    OS_PEND_LIST         PendList;                          /* List of tasks waiting on semaphore                     */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
-    OS_MON              *DbgPrevPtr;
-    OS_MON              *DbgNextPtr;
-    CPU_CHAR            *DbgNamePtr;
-#endif
-                                                            /* ------------------ SPECIFIC MEMBERS ------------------ */
-    void                *MonDataPtr;
-};
-
-struct  os_mon_data {
-    void                 *p_eval_data;
-    OS_MON_ON_EVAL_PTR    p_on_eval;
-};
-
-struct  os_mon_ctx {
-    void * a;
-    void * b;
-    void * c;
-    void * d;
 };
 
 
@@ -1106,25 +942,21 @@ struct os_tcb {
 
     void                *ExtPtr;                            /* Pointer to user definable data for TCB extension       */
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
-    CPU_CHAR            *NamePtr;                           /* Pointer to task name                                   */
-#endif
-
-#if ((OS_CFG_DBG_EN == DEF_ENABLED) || (OS_CFG_STAT_TASK_STK_CHK_EN == DEF_ENABLED))
     CPU_STK             *StkLimitPtr;                       /* Pointer used to set stack 'watermark' limit            */
+
+#if (OS_CFG_DBG_EN > 0u)
+    CPU_CHAR            *NamePtr;                           /* Pointer to task name                                   */
 #endif
 
     OS_TCB              *NextPtr;                           /* Pointer to next     TCB in the TCB list                */
     OS_TCB              *PrevPtr;                           /* Pointer to previous TCB in the TCB list                */
 
-#if (OS_CFG_TASK_TICK_EN == DEF_ENABLED)
+#if (OS_CFG_TICK_EN > 0u)
     OS_TCB              *TickNextPtr;
     OS_TCB              *TickPrevPtr;
-
-    OS_TICK_LIST        *TickListPtr;                       /* Pointer to tick list if task is in a tick list         */
 #endif
 
-#if ((OS_CFG_DBG_EN == DEF_ENABLED) || (OS_CFG_STAT_TASK_STK_CHK_EN == DEF_ENABLED) || (OS_CFG_TASK_STK_REDZONE_EN == DEF_ENABLED))
+#if ((OS_CFG_DBG_EN > 0u) || (OS_CFG_STAT_TASK_STK_CHK_EN > 0u) || (OS_CFG_TASK_STK_REDZONE_EN > 0u))
     CPU_STK             *StkBasePtr;                        /* Pointer to base address of stack                       */
 #endif
 
@@ -1132,57 +964,56 @@ struct os_tcb {
     OS_TLS               TLS_Tbl[OS_CFG_TLS_TBL_SIZE];
 #endif
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_TASK_PTR          TaskEntryAddr;                     /* Pointer to task entry point address                    */
     void                *TaskEntryArg;                      /* Argument passed to task when it was created            */
 #endif
 
-    OS_PEND_DATA        *PendDataTblPtr;                    /* Pointer to list containing objects pended on           */
+    OS_TCB              *PendNextPtr;                       /* Pointer to next     TCB in pend list.                  */
+    OS_TCB              *PendPrevPtr;                       /* Pointer to previous TCB in pend list.                  */
+    OS_PEND_OBJ         *PendObjPtr;                        /* Pointer to object pended on.                           */
     OS_STATE             PendOn;                            /* Indicates what task is pending on                      */
     OS_STATUS            PendStatus;                        /* Pend status                                            */
 
     OS_STATE             TaskState;                         /* See OS_TASK_STATE_xxx                                  */
     OS_PRIO              Prio;                              /* Task priority (0 == highest)                           */
-#if (OS_CFG_MUTEX_EN == DEF_ENABLED)
+#if (OS_CFG_MUTEX_EN > 0u)
     OS_PRIO              BasePrio;                          /* Base priority (Not inherited)                          */
     OS_MUTEX            *MutexGrpHeadPtr;                   /* Owned mutex group head pointer                         */
 #endif
 
-#if ((OS_CFG_DBG_EN == DEF_ENABLED) || (OS_CFG_STAT_TASK_STK_CHK_EN == DEF_ENABLED) || (OS_CFG_TASK_STK_REDZONE_EN == DEF_ENABLED))
+#if ((OS_CFG_DBG_EN > 0u) || (OS_CFG_STAT_TASK_STK_CHK_EN > 0u) || (OS_CFG_TASK_STK_REDZONE_EN > 0u))
     CPU_STK_SIZE         StkSize;                           /* Size of task stack (in number of stack elements)       */
 #endif
     OS_OPT               Opt;                               /* Task options as passed by OSTaskCreate()               */
 
-#if (OS_CFG_PEND_MULTI_EN == DEF_ENABLED)
-    OS_OBJ_QTY           PendDataTblEntries;                /* Size of array of objects to pend on                    */
-#endif
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
     CPU_TS               TS;                                /* Timestamp                                              */
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT08U           SemID;                             /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           SemID;                             /* Unique ID for third-party debuggers and tracers.       */
 #endif
     OS_SEM_CTR           SemCtr;                            /* Task specific semaphore counter                        */
 
                                                             /* DELAY / TIMEOUT                                        */
-#if (OS_CFG_TASK_TICK_EN == DEF_ENABLED)
-    OS_TICK              TickRemain;                        /* Number of ticks remaining (updated by OS_TickTask()    */
+#if (OS_CFG_TICK_EN > 0u)
+    OS_TICK              TickRemain;                        /* Number of ticks remaining                              */
     OS_TICK              TickCtrPrev;                       /* Used by OSTimeDlyXX() in PERIODIC mode                 */
 #endif
 
-#if (OS_CFG_SCHED_ROUND_ROBIN_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_ROUND_ROBIN_EN > 0u)
     OS_TICK              TimeQuanta;
     OS_TICK              TimeQuantaCtr;
 #endif
 
-#if (OS_MSG_EN == DEF_ENABLED)
+#if (OS_MSG_EN > 0u)
     void                *MsgPtr;                            /* Message received                                       */
     OS_MSG_SIZE          MsgSize;
 #endif
 
-#if (OS_CFG_TASK_Q_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_Q_EN > 0u)
     OS_MSG_Q             MsgQ;                              /* Message queue associated with task                     */
-#if (OS_CFG_TASK_PROFILE_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_PROFILE_EN > 0u)
     CPU_TS               MsgQPendTime;                      /* Time it took for signal to be received                 */
     CPU_TS               MsgQPendTimeMax;                   /* Max amount of time it took for signal to be received   */
 #endif
@@ -1192,17 +1023,17 @@ struct os_tcb {
     OS_REG               RegTbl[OS_CFG_TASK_REG_TBL_SIZE];  /* Task specific registers                                */
 #endif
 
-#if (OS_CFG_FLAG_EN == DEF_ENABLED)
+#if (OS_CFG_FLAG_EN > 0u)
     OS_FLAGS             FlagsPend;                         /* Event flag(s) to wait on                               */
     OS_FLAGS             FlagsRdy;                          /* Event flags that made task ready to run                */
     OS_OPT               FlagsOpt;                          /* Options (See OS_OPT_FLAG_xxx)                          */
 #endif
 
-#if (OS_CFG_TASK_SUSPEND_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_SUSPEND_EN > 0u)
     OS_NESTING_CTR       SuspendCtr;                        /* Nesting counter for OSTaskSuspend()                    */
 #endif
 
-#if (OS_CFG_TASK_PROFILE_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_PROFILE_EN > 0u)
     OS_CPU_USAGE         CPUUsage;                          /* CPU Usage of task (0.00-100.00%)                       */
     OS_CPU_USAGE         CPUUsageMax;                       /* CPU Usage of task (0.00-100.00%) - Peak                */
     OS_CTX_SW_CTR        CtxSwCtr;                          /* Number of time the task was switched in                */
@@ -1215,7 +1046,7 @@ struct os_tcb {
     CPU_TS               SemPendTimeMax;                    /* Max amount of time it took for signal to be received   */
 #endif
 
-#if (OS_CFG_STAT_TASK_STK_CHK_EN == DEF_ENABLED)
+#if (OS_CFG_STAT_TASK_STK_CHK_EN > 0u)
     CPU_STK_SIZE         StkUsed;                           /* Number of stack elements used from the stack           */
     CPU_STK_SIZE         StkFree;                           /* Number of stack elements free on   the stack           */
 #endif
@@ -1223,17 +1054,17 @@ struct os_tcb {
 #ifdef CPU_CFG_INT_DIS_MEAS_EN
     CPU_TS               IntDisTimeMax;                     /* Maximum interrupt disable time                         */
 #endif
-#if (OS_CFG_SCHED_LOCK_TIME_MEAS_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u)
     CPU_TS               SchedLockTimeMax;                  /* Maximum scheduler lock time                            */
 #endif
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_TCB              *DbgPrevPtr;
     OS_TCB              *DbgNextPtr;
     CPU_CHAR            *DbgNamePtr;
 #endif
-#if (defined(TRACE_CFG_EN) && (TRACE_CFG_EN == DEF_ENABLED))
-    CPU_INT08U           TaskID;                            /* Unique ID for third-party debuggers and tracers.       */
+#if (defined(OS_CFG_TRACE_EN) && (OS_CFG_TRACE_EN > 0u))
+    CPU_INT16U           TaskID;                            /* Unique ID for third-party debuggers and tracers.       */
 #endif
 	#if USE_OSA > 0u
 	unsigned int		OSA_Tid;
@@ -1249,7 +1080,7 @@ struct os_tcb {
 
 struct  os_tick_list {
     OS_TCB              *TCB_Ptr;                           /* Pointer to list of tasks in tick list                 */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_OBJ_QTY           NbrEntries;                        /* Current number of entries in the tick list            */
     OS_OBJ_QTY           NbrUpdated;                        /* Number of entries updated                             */
 #endif
@@ -1263,10 +1094,10 @@ struct  os_tick_list {
 */
 
 struct  os_tmr {
-#if (OS_OBJ_TYPE_REQ == DEF_ENABLED)
+#if (OS_OBJ_TYPE_REQ > 0u)
     OS_OBJ_TYPE          Type;
 #endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     CPU_CHAR            *NamePtr;                           /* Name to give the timer                                 */
 #endif
     OS_TMR_CALLBACK_PTR  CallbackPtr;                       /* Function to call when timer expires                    */
@@ -1278,7 +1109,7 @@ struct  os_tmr {
     OS_TICK              Period;                            /* Period to repeat timer                                 */
     OS_OPT               Opt;                               /* Options (see OS_OPT_TMR_xxx)                           */
     OS_STATE             State;
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
     OS_TMR              *DbgPrevPtr;
     OS_TMR              *DbgNextPtr;
 #endif
@@ -1293,8 +1124,8 @@ struct  os_tmr {
 ************************************************************************************************************************
 */
                                                                         /* APPLICATION HOOKS ------------------------ */
-#if (OS_CFG_APP_HOOKS_EN == DEF_ENABLED)
-#if (OS_CFG_TASK_STK_REDZONE_EN == DEF_ENABLED)
+#if (OS_CFG_APP_HOOKS_EN > 0u)
+#if (OS_CFG_TASK_STK_REDZONE_EN > 0u)
 OS_EXT           OS_APP_HOOK_TCB            OS_AppRedzoneHitHookPtr;
 #endif
 OS_EXT           OS_APP_HOOK_TCB            OS_AppTaskCreateHookPtr;
@@ -1308,17 +1139,17 @@ OS_EXT           OS_APP_HOOK_VOID           OS_AppTimeTickHookPtr;
 #endif
 
                                                                         /* IDLE TASK -------------------------------- */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_IDLE_CTR               OSIdleTaskCtr;
 #endif
-#if (OS_CFG_TASK_IDLE_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_IDLE_EN > 0u)
 OS_EXT            OS_TCB                    OSIdleTaskTCB;
 #endif
 
                                                                         /* MISCELLANEOUS ---------------------------- */
 OS_EXT            OS_NESTING_CTR            OSIntNestingCtr;            /* Interrupt nesting level                    */
 #ifdef CPU_CFG_INT_DIS_MEAS_EN
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
 OS_EXT            CPU_TS                    OSIntDisTimeMax;            /* Overall interrupt disable time             */
 #endif
 #endif
@@ -1326,44 +1157,35 @@ OS_EXT            CPU_TS                    OSIntDisTimeMax;            /* Overa
 OS_EXT            OS_STATE                  OSRunning;                  /* Flag indicating the kernel is running      */
 OS_EXT            OS_STATE                  OSInitialized;              /* Flag indicating the kernel is initialized  */
 
-
-                                                                        /* ISR HANDLER TASK ------------------------- */
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)
-OS_EXT            OS_INT_Q                 *OSIntQInPtr;
-OS_EXT            OS_INT_Q                 *OSIntQOutPtr;
-OS_EXT            OS_OBJ_QTY                OSIntQNbrEntries;
-OS_EXT            OS_OBJ_QTY                OSIntQNbrEntriesMax;
-OS_EXT            OS_OBJ_QTY                OSIntQOvfCtr;
-OS_EXT            OS_TCB                    OSIntQTaskTCB;
-#if (OS_CFG_TS_EN == DEF_ENABLED)
-OS_EXT            CPU_TS                    OSIntQTaskTimeMax;
-#endif
+#if (OS_CFG_STAT_TASK_STK_CHK_EN > 0u) && (OS_CFG_ISR_STK_SIZE > 0u)
+OS_EXT            CPU_INT32U                OSISRStkFree;               /* Number of free ISR stack entries           */
+OS_EXT            CPU_INT32U                OSISRStkUsed;               /* Number of used ISR stack entries           */
 #endif
 
                                                                         /* FLAGS ------------------------------------ */
-#if (OS_CFG_FLAG_EN == DEF_ENABLED)
-#if (OS_CFG_DBG_EN  == DEF_ENABLED)
+#if (OS_CFG_FLAG_EN > 0u)
+#if (OS_CFG_DBG_EN  > 0u)
 OS_EXT            OS_FLAG_GRP              *OSFlagDbgListPtr;
 OS_EXT            OS_OBJ_QTY                OSFlagQty;
 #endif
 #endif
 
                                                                         /* MEMORY MANAGEMENT ------------------------ */
-#if (OS_CFG_MEM_EN == DEF_ENABLED)
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_MEM_EN > 0u)
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_MEM                   *OSMemDbgListPtr;
 OS_EXT            OS_OBJ_QTY                OSMemQty;                   /* Number of memory partitions created        */
 #endif
 #endif
 
                                                                         /* OS_MSG POOL ------------------------------ */
-#if (OS_MSG_EN == DEF_ENABLED)
+#if (OS_MSG_EN > 0u)
 OS_EXT            OS_MSG_POOL               OSMsgPool;                  /* Pool of OS_MSG                             */
 #endif
 
                                                                         /* MUTEX MANAGEMENT ------------------------- */
-#if (OS_CFG_MUTEX_EN == DEF_ENABLED)
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_MUTEX_EN > 0u)
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_MUTEX                 *OSMutexDbgListPtr;
 OS_EXT            OS_OBJ_QTY                OSMutexQty;                 /* Number of mutexes created                  */
 #endif
@@ -1372,14 +1194,11 @@ OS_EXT            OS_OBJ_QTY                OSMutexQty;                 /* Numbe
                                                                         /* PRIORITIES ------------------------------- */
 OS_EXT            OS_PRIO                   OSPrioCur;                  /* Priority of current task                   */
 OS_EXT            OS_PRIO                   OSPrioHighRdy;              /* Priority of highest priority task          */
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)
-OS_EXT            OS_PRIO                   OSPrioSaved;                /* Saved priority level when Post Deferred    */
-#endif
-extern            CPU_DATA                  OSPrioTbl[OS_PRIO_TBL_SIZE];
+OS_EXT            CPU_DATA                  OSPrioTbl[OS_PRIO_TBL_SIZE];
 
                                                                         /* QUEUES ----------------------------------- */
-#if (OS_CFG_Q_EN == DEF_ENABLED)
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_Q_EN > 0u)
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_Q                     *OSQDbgListPtr;
 OS_EXT            OS_OBJ_QTY                OSQQty;                     /* Number of message queues created           */
 #endif
@@ -1395,35 +1214,27 @@ OS_EXT            OS_RDY_LIST               OSRdyList[OS_CFG_PRIO_MAX]; /* Table
 OS_EXT            CPU_BOOLEAN               OSSafetyCriticalStartFlag;  /* Flag indicating that all init. done        */
 #endif
                                                                         /* SCHEDULER -------------------------------- */
-#if (OS_CFG_SCHED_LOCK_TIME_MEAS_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u)
 OS_EXT            CPU_TS_TMR                OSSchedLockTimeBegin;       /* Scheduler lock time measurement            */
 OS_EXT            CPU_TS_TMR                OSSchedLockTimeMax;
 OS_EXT            CPU_TS_TMR                OSSchedLockTimeMaxCur;
 #endif
 
 OS_EXT            OS_NESTING_CTR            OSSchedLockNestingCtr;      /* Lock nesting level                         */
-#if (OS_CFG_SCHED_ROUND_ROBIN_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_ROUND_ROBIN_EN > 0u)
 OS_EXT            OS_TICK                   OSSchedRoundRobinDfltTimeQuanta;
 OS_EXT            CPU_BOOLEAN               OSSchedRoundRobinEn;        /* Enable/Disable round-robin scheduling      */
 #endif
                                                                         /* SEMAPHORES ------------------------------- */
-#if (OS_CFG_SEM_EN == DEF_ENABLED)
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_SEM_EN > 0u)
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_SEM                   *OSSemDbgListPtr;
 OS_EXT            OS_OBJ_QTY                OSSemQty;                   /* Number of semaphores created               */
 #endif
 #endif
 
-                                                                        /* MONITORS --------------------------------- */
-#if (OS_CFG_MON_EN == DEF_ENABLED)
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
-OS_EXT            OS_MON                   *OSMonDbgListPtr;
-OS_EXT            OS_OBJ_QTY                OSMonQty;                   /* Number of monitors created                 */
-#endif
-#endif
-
                                                                         /* STATISTICS ------------------------------- */
-#if (OS_CFG_STAT_TASK_EN == DEF_ENABLED)
+#if (OS_CFG_STAT_TASK_EN > 0u)
 OS_EXT            CPU_BOOLEAN               OSStatResetFlag;            /* Force the reset of the computed statistics */
 OS_EXT            OS_CPU_USAGE              OSStatTaskCPUUsage;         /* CPU Usage in %                             */
 OS_EXT            OS_CPU_USAGE              OSStatTaskCPUUsageMax;      /* CPU Usage in % (Peak)                      */
@@ -1432,15 +1243,16 @@ OS_EXT            OS_TICK                   OSStatTaskCtrMax;
 OS_EXT            OS_TICK                   OSStatTaskCtrRun;
 OS_EXT            CPU_BOOLEAN               OSStatTaskRdy;
 OS_EXT            OS_TCB                    OSStatTaskTCB;
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
+OS_EXT            CPU_TS                    OSStatTaskTime;
 OS_EXT            CPU_TS                    OSStatTaskTimeMax;
 #endif
 #endif
 
                                                                         /* TASKS ------------------------------------ */
-#if ((OS_CFG_TASK_PROFILE_EN == DEF_ENABLED) || (OS_CFG_DBG_EN == DEF_ENABLED))
+#if ((OS_CFG_TASK_PROFILE_EN > 0u) || (OS_CFG_DBG_EN > 0u))
 OS_EXT            OS_CTX_SW_CTR             OSTaskCtxSwCtr;             /* Number of context switches                 */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_TCB                   *OSTaskDbgListPtr;
 #endif
 #endif
@@ -1451,42 +1263,40 @@ OS_EXT            OS_OBJ_QTY                OSTaskQty;                  /* Numbe
 OS_EXT            OS_REG_ID                 OSTaskRegNextAvailID;       /* Next available Task Register ID            */
 #endif
 
-                                                                        /* TICK TASK -------------------------------- */
-#if (OS_CFG_TASK_TICK_EN == DEF_ENABLED)
+                                                                        /* TICK ------------------------------------- */
+#if (OS_CFG_TICK_EN > 0u)
 OS_EXT            OS_TICK                   OSTickCtr;                  /* Cnts the #ticks since startup or last set  */
-#if (OS_CFG_DYN_TICK_EN == DEF_ENABLED)
+#if (OS_CFG_DYN_TICK_EN > 0u)
 OS_EXT            OS_TICK                   OSTickCtrStep;              /* Number of ticks to the next tick task call.*/
-OS_EXT            OS_TICK                   OSTickCtrPend;              /* Number of ticks waiting to be processed.   */
 #endif
-OS_EXT            OS_TCB                    OSTickTaskTCB;
-#if (OS_CFG_TS_EN == DEF_ENABLED)
-OS_EXT            CPU_TS                    OSTickTaskTimeMax;
+OS_EXT            OS_TICK_LIST              OSTickList;
+#if (OS_CFG_TS_EN > 0u)
+OS_EXT            CPU_TS                    OSTickTime;
+OS_EXT            CPU_TS                    OSTickTimeMax;
 #endif
-OS_EXT            OS_TICK_LIST              OSTickListDly;
-OS_EXT            OS_TICK_LIST              OSTickListTimeout;
 #endif
 
 
 
-#if (OS_CFG_TMR_EN == DEF_ENABLED)                                      /* TIMERS ----------------------------------- */
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_TMR_EN > 0u)                                                /* TIMERS ----------------------------------- */
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_TMR                   *OSTmrDbgListPtr;
 OS_EXT            OS_OBJ_QTY                OSTmrListEntries;           /* Doubly-linked list of timers               */
 #endif
 OS_EXT            OS_TMR                   *OSTmrListPtr;
-#if (OS_CFG_MUTEX_EN == DEF_ENABLED)                                    /* Use a Mutex (if available) to protect tmrs */
+OS_EXT            OS_COND                   OSTmrCond;
 OS_EXT            OS_MUTEX                  OSTmrMutex;
-#endif
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+
+#if (OS_CFG_DBG_EN > 0u)
 OS_EXT            OS_OBJ_QTY                OSTmrQty;                   /* Number of timers created                   */
 #endif
 OS_EXT            OS_TCB                    OSTmrTaskTCB;               /* TCB of timer task                          */
-#if (OS_CFG_TS_EN == DEF_ENABLED)
+#if (OS_CFG_TS_EN > 0u)
+OS_EXT            CPU_TS                    OSTmrTaskTime;
 OS_EXT            CPU_TS                    OSTmrTaskTimeMax;
 #endif
-OS_EXT            OS_TICK                   OSTmrTickCtr;               /* Current time for the timers                */
-OS_EXT            OS_CTR                    OSTmrUpdateCnt;             /* Counter for updating timers                */
-OS_EXT            OS_CTR                    OSTmrUpdateCtr;
+OS_EXT            OS_TICK                   OSTmrTaskTickBase;          /* Tick to which timer delays are relative    */
+OS_EXT            OS_TICK                   OSTmrToTicksMult;           /* Converts Timer time to Ticks Multiplier    */
 #endif
 
 
@@ -1510,14 +1320,6 @@ extern  CPU_STK_SIZE  const OSCfg_IdleTaskStkLimit;
 extern  CPU_STK_SIZE  const OSCfg_IdleTaskStkSize;
 extern  CPU_INT32U    const OSCfg_IdleTaskStkSizeRAM;
 
-extern  OS_INT_Q    * const OSCfg_IntQBasePtr;
-extern  OS_OBJ_QTY    const OSCfg_IntQSize;
-extern  CPU_INT32U    const OSCfg_IntQSizeRAM;
-extern  CPU_STK     * const OSCfg_IntQTaskStkBasePtr;
-extern  CPU_STK_SIZE  const OSCfg_IntQTaskStkLimit;
-extern  CPU_STK_SIZE  const OSCfg_IntQTaskStkSize;
-extern  CPU_INT32U    const OSCfg_IntQTaskStkSizeRAM;
-
 extern  CPU_STK     * const OSCfg_ISRStkBasePtr;
 extern  CPU_STK_SIZE  const OSCfg_ISRStkSize;
 extern  CPU_INT32U    const OSCfg_ISRStkSizeRAM;
@@ -1536,11 +1338,6 @@ extern  CPU_INT32U    const OSCfg_StatTaskStkSizeRAM;
 extern  CPU_STK_SIZE  const OSCfg_StkSizeMin;
 
 extern  OS_RATE_HZ    const OSCfg_TickRate_Hz;
-extern  OS_PRIO       const OSCfg_TickTaskPrio;
-extern  CPU_STK     * const OSCfg_TickTaskStkBasePtr;
-extern  CPU_STK_SIZE  const OSCfg_TickTaskStkLimit;
-extern  CPU_STK_SIZE  const OSCfg_TickTaskStkSize;
-extern  CPU_INT32U    const OSCfg_TickTaskStkSizeRAM;
 
 extern  OS_PRIO       const OSCfg_TmrTaskPrio;
 extern  OS_RATE_HZ    const OSCfg_TmrTaskRate_Hz;
@@ -1549,29 +1346,26 @@ extern  CPU_STK_SIZE  const OSCfg_TmrTaskStkLimit;
 extern  CPU_STK_SIZE  const OSCfg_TmrTaskStkSize;
 extern  CPU_INT32U    const OSCfg_TmrTaskStkSizeRAM;
 
-#if (OS_CFG_TASK_IDLE_EN == DEF_ENABLED)
-extern  CPU_STK        OSCfg_IdleTaskStk[];
+extern  CPU_INT32U    const OSCfg_DataSizeRAM;
+
+#if (OS_CFG_TASK_IDLE_EN > 0u)
+extern  CPU_STK        OSCfg_IdleTaskStk[OS_CFG_IDLE_TASK_STK_SIZE];
 #endif
 
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)
-extern  CPU_STK        OSCfg_IntQTaskStk[];
-extern  OS_INT_Q       OSCfg_IntQ[];
+#if (OS_CFG_ISR_STK_SIZE > 0u)
+extern  CPU_STK        OSCfg_ISRStk[OS_CFG_ISR_STK_SIZE];
 #endif
 
-extern  CPU_STK        OSCfg_ISRStk[];
-
-#if (OS_MSG_EN == DEF_ENABLED)
-extern  OS_MSG         OSCfg_MsgPool[];
+#if (OS_MSG_EN > 0u)
+extern  OS_MSG         OSCfg_MsgPool[OS_CFG_MSG_POOL_SIZE];
 #endif
 
-#if (OS_CFG_STAT_TASK_EN == DEF_ENABLED)
-extern  CPU_STK        OSCfg_StatTaskStk[];
+#if (OS_CFG_STAT_TASK_EN > 0u)
+extern  CPU_STK        OSCfg_StatTaskStk[OS_CFG_STAT_TASK_STK_SIZE];
 #endif
 
-extern  CPU_STK        OSCfg_TickTaskStk[];
-
-#if (OS_CFG_TMR_EN == DEF_ENABLED)
-extern  CPU_STK        OSCfg_TmrTaskStk[];
+#if (OS_CFG_TMR_EN > 0u)
+extern  CPU_STK        OSCfg_TmrTaskStk[OS_CFG_TMR_TASK_STK_SIZE];
 #endif
 
 /*
@@ -1586,14 +1380,14 @@ extern  CPU_STK        OSCfg_TmrTaskStk[];
 /*                                                    EVENT FLAGS                                                     */
 /* ================================================================================================================== */
 
-#if (OS_CFG_FLAG_EN == DEF_ENABLED)
+#if (OS_CFG_FLAG_EN > 0u)
 
 void          OSFlagCreate              (OS_FLAG_GRP           *p_grp,
                                          CPU_CHAR              *p_name,
                                          OS_FLAGS               flags,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_FLAG_DEL_EN == DEF_ENABLED)
+#if (OS_CFG_FLAG_DEL_EN > 0u)
 OS_OBJ_QTY    OSFlagDel                 (OS_FLAG_GRP           *p_grp,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1606,7 +1400,7 @@ OS_FLAGS      OSFlagPend                (OS_FLAG_GRP           *p_grp,
                                          CPU_TS                *p_ts,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_FLAG_PEND_ABORT_EN == DEF_ENABLED)
+#if (OS_CFG_FLAG_PEND_ABORT_EN > 0u)
 OS_OBJ_QTY    OSFlagPendAbort           (OS_FLAG_GRP           *p_grp,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1623,23 +1417,16 @@ OS_FLAGS      OSFlagPost                (OS_FLAG_GRP           *p_grp,
 
 void          OS_FlagClr                (OS_FLAG_GRP           *p_grp);
 
-void          OS_FlagBlock              (OS_PEND_DATA          *p_pend_data,
-                                         OS_FLAG_GRP           *p_grp,
+void          OS_FlagBlock              (OS_FLAG_GRP           *p_grp,
                                          OS_FLAGS               flags,
                                          OS_OPT                 opt,
                                          OS_TICK                timeout);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_FlagDbgListAdd         (OS_FLAG_GRP           *p_grp);
 
 void          OS_FlagDbgListRemove      (OS_FLAG_GRP           *p_grp);
 #endif
-
-OS_FLAGS      OS_FlagPost               (OS_FLAG_GRP           *p_grp,
-                                         OS_FLAGS               flags,
-                                         OS_OPT                 opt,
-                                         CPU_TS                 ts,
-                                         OS_ERR                *p_err);
 
 void          OS_FlagTaskRdy            (OS_TCB                *p_tcb,
                                          OS_FLAGS               flags_rdy,
@@ -1651,7 +1438,7 @@ void          OS_FlagTaskRdy            (OS_TCB                *p_tcb,
 /*                                          FIXED SIZE MEMORY BLOCK MANAGEMENT                                        */
 /* ================================================================================================================== */
 
-#if (OS_CFG_MEM_EN == DEF_ENABLED)
+#if (OS_CFG_MEM_EN > 0u)
 
 void          OSMemCreate               (OS_MEM                *p_mem,
                                          CPU_CHAR              *p_name,
@@ -1669,7 +1456,7 @@ void          OSMemPut                  (OS_MEM                *p_mem,
 
 /* ------------------------------------------------ INTERNAL FUNCTIONS ---------------------------------------------- */
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_MemDbgListAdd          (OS_MEM                *p_mem);
 #endif
 
@@ -1679,53 +1466,16 @@ void          OS_MemInit                (OS_ERR                *p_err);
 
 
 /* ================================================================================================================== */
-/*                                                     MONITORS                                                       */
-/* ================================================================================================================== */
-
-#if (OS_CFG_MON_EN == DEF_ENABLED)
-void          OSMonCreate               (OS_MON                *p_mon,
-                                         CPU_CHAR              *p_name,
-                                         void                  *p_mon_data,
-                                         OS_ERR                *p_err);
-
-void          OSMonOp                   (OS_MON                *p_mon,
-                                         OS_TICK                timeout,
-                                         void                  *p_arg,
-                                         OS_MON_ON_ENTER_PTR    p_on_enter,
-                                         OS_MON_ON_EVAL_PTR     p_on_eval,
-                                         OS_OPT                 opt,
-                                         OS_ERR                *p_err);
-
-#if (OS_CFG_MON_DEL_EN == DEF_ENABLED)
-OS_OBJ_QTY    OSMonDel                  (OS_MON                *p_mon,
-                                         OS_OPT                 opt,
-                                         OS_ERR                *p_err);
-#endif
-
-/* ------------------------------------------------ INTERNAL FUNCTIONS ---------------------------------------------- */
-
-void          OS_MonClr                 (OS_MON                *p_mon);
-
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
-void          OS_MonDbgListAdd          (OS_MON                *p_mon);
-
-void          OS_MonDbgListRemove       (OS_MON                *p_mon);
-#endif
-
-#endif
-
-
-/* ================================================================================================================== */
 /*                                             MUTUAL EXCLUSION SEMAPHORES                                            */
 /* ================================================================================================================== */
 
-#if (OS_CFG_MUTEX_EN == DEF_ENABLED)
+#if (OS_CFG_MUTEX_EN > 0u)
 
 void          OSMutexCreate             (OS_MUTEX              *p_mutex,
                                          CPU_CHAR              *p_name,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_MUTEX_DEL_EN == DEF_ENABLED)
+#if (OS_CFG_MUTEX_DEL_EN > 0u)
 OS_OBJ_QTY    OSMutexDel                (OS_MUTEX              *p_mutex,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1737,7 +1487,7 @@ void          OSMutexPend               (OS_MUTEX              *p_mutex,
                                          CPU_TS                *p_ts,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_MUTEX_PEND_ABORT_EN == DEF_ENABLED)
+#if (OS_CFG_MUTEX_PEND_ABORT_EN > 0u)
 OS_OBJ_QTY    OSMutexPendAbort          (OS_MUTEX              *p_mutex,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1752,7 +1502,7 @@ void          OSMutexPost               (OS_MUTEX              *p_mutex,
 
 void          OS_MutexClr               (OS_MUTEX              *p_mutex);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_MutexDbgListAdd        (OS_MUTEX              *p_mutex);
 
 void          OS_MutexDbgListRemove     (OS_MUTEX              *p_mutex);
@@ -1771,49 +1521,23 @@ void          OS_MutexGrpPostAll        (OS_TCB                *p_tcb);
 
 
 /* ================================================================================================================== */
-/*                                                    MULTI PEND                                                      */
-/* ================================================================================================================== */
-
-#if (OS_CFG_PEND_MULTI_EN == DEF_ENABLED)
-
-OS_OBJ_QTY    OSPendMulti               (OS_PEND_DATA          *p_pend_data_tbl,
-                                         OS_OBJ_QTY             tbl_size,
-                                         OS_TICK                timeout,
-                                         OS_OPT                 opt,
-                                         OS_ERR                *p_err);
-
-/* ------------------------------------------------ INTERNAL FUNCTIONS ---------------------------------------------- */
-
-OS_OBJ_QTY    OS_PendMultiGetRdy        (OS_PEND_DATA          *p_pend_data_tbl,
-                                         OS_OBJ_QTY             tbl_size);
-
-CPU_BOOLEAN   OS_PendMultiValidate      (OS_PEND_DATA          *p_pend_data_tbl,
-                                         OS_OBJ_QTY             tbl_size);
-
-void          OS_PendMultiWait          (OS_PEND_DATA          *p_pend_data_tbl,
-                                         OS_OBJ_QTY             tbl_size,
-                                         OS_TICK                timeout);
-#endif
-
-
-/* ================================================================================================================== */
 /*                                                   MESSAGE QUEUES                                                   */
 /* ================================================================================================================== */
 
-#if (OS_CFG_Q_EN == DEF_ENABLED)
+#if (OS_CFG_Q_EN > 0u)
 
 void          OSQCreate                 (OS_Q                  *p_q,
                                          CPU_CHAR              *p_name,
                                          OS_MSG_QTY             max_qty,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_Q_DEL_EN == DEF_ENABLED)
+#if (OS_CFG_Q_DEL_EN > 0u)
 OS_OBJ_QTY    OSQDel                    (OS_Q                  *p_q,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
 #endif
 
-#if (OS_CFG_Q_FLUSH_EN == DEF_ENABLED)
+#if (OS_CFG_Q_FLUSH_EN > 0u)
 OS_MSG_QTY    OSQFlush                  (OS_Q                  *p_q,
                                          OS_ERR                *p_err);
 #endif
@@ -1825,7 +1549,7 @@ void         *OSQPend                   (OS_Q                  *p_q,
                                          CPU_TS                *p_ts,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_Q_PEND_ABORT_EN == DEF_ENABLED)
+#if (OS_CFG_Q_PEND_ABORT_EN > 0u)
 OS_OBJ_QTY    OSQPendAbort              (OS_Q                  *p_q,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1841,18 +1565,12 @@ void          OSQPost                   (OS_Q                  *p_q,
 
 void          OS_QClr                   (OS_Q                  *p_q);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_QDbgListAdd            (OS_Q                  *p_q);
 
 void          OS_QDbgListRemove         (OS_Q                  *p_q);
 #endif
 
-void          OS_QPost                  (OS_Q                  *p_q,
-                                         void                  *p_void,
-                                         OS_MSG_SIZE            msg_size,
-                                         OS_OPT                 opt,
-                                         CPU_TS                 ts,
-                                         OS_ERR                *p_err);
 #endif
 
 
@@ -1860,14 +1578,14 @@ void          OS_QPost                  (OS_Q                  *p_q,
 /*                                                     SEMAPHORES                                                     */
 /* ================================================================================================================== */
 
-#if (OS_CFG_SEM_EN == DEF_ENABLED)
+#if (OS_CFG_SEM_EN > 0u)
 
 void          OSSemCreate               (OS_SEM                *p_sem,
                                          CPU_CHAR              *p_name,
                                          OS_SEM_CTR             cnt,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_SEM_DEL_EN == DEF_ENABLED)
+#if (OS_CFG_SEM_DEL_EN > 0u)
 OS_OBJ_QTY    OSSemDel                  (OS_SEM                *p_sem,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1879,7 +1597,7 @@ OS_SEM_CTR    OSSemPend                 (OS_SEM                *p_sem,
                                          CPU_TS                *p_ts,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_SEM_PEND_ABORT_EN== DEF_ENABLED)
+#if (OS_CFG_SEM_PEND_ABORT_EN > 0u)
 OS_OBJ_QTY    OSSemPendAbort            (OS_SEM                *p_sem,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -1889,7 +1607,7 @@ OS_SEM_CTR    OSSemPost                 (OS_SEM                *p_sem,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_SEM_SET_EN == DEF_ENABLED)
+#if (OS_CFG_SEM_SET_EN > 0u)
 void          OSSemSet                  (OS_SEM                *p_sem,
                                          OS_SEM_CTR             cnt,
                                          OS_ERR                *p_err);
@@ -1899,16 +1617,12 @@ void          OSSemSet                  (OS_SEM                *p_sem,
 
 void          OS_SemClr                 (OS_SEM                *p_sem);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_SemDbgListAdd          (OS_SEM                *p_sem);
 
 void          OS_SemDbgListRemove       (OS_SEM                *p_sem);
 #endif
 
-OS_SEM_CTR    OS_SemPost                (OS_SEM                *p_sem,
-                                         OS_OPT                 opt,
-                                         CPU_TS                 ts,
-                                         OS_ERR                *p_err);
 #endif
 
 
@@ -1916,7 +1630,7 @@ OS_SEM_CTR    OS_SemPost                (OS_SEM                *p_sem,
 /*                                                 TASK MANAGEMENT                                                    */
 /* ================================================================================================================== */
 
-#if (OS_CFG_TASK_CHANGE_PRIO_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_CHANGE_PRIO_EN > 0u)
 void          OSTaskChangePrio          (OS_TCB                *p_tcb,
                                          OS_PRIO                prio_new,
                                          OS_ERR                *p_err);
@@ -1936,12 +1650,12 @@ void          OSTaskCreate              (OS_TCB                *p_tcb,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_TASK_DEL_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_DEL_EN > 0u)
 void          OSTaskDel                 (OS_TCB                *p_tcb,
                                          OS_ERR                *p_err);
 #endif
 
-#if (OS_CFG_TASK_Q_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_Q_EN > 0u)
 OS_MSG_QTY    OSTaskQFlush              (OS_TCB                *p_tcb,
                                          OS_ERR                *p_err);
 
@@ -1976,7 +1690,7 @@ void          OSTaskRegSet              (OS_TCB                *p_tcb,
                                          OS_ERR                *p_err);
 #endif
 
-#if (OS_CFG_TASK_SUSPEND_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_SUSPEND_EN > 0u)
 void          OSTaskResume              (OS_TCB                *p_tcb,
                                          OS_ERR                *p_err);
 
@@ -1989,7 +1703,7 @@ OS_SEM_CTR    OSTaskSemPend             (OS_TICK                timeout,
                                          CPU_TS                *p_ts,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_TASK_SEM_PEND_ABORT_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_SEM_PEND_ABORT_EN > 0u)
 CPU_BOOLEAN   OSTaskSemPendAbort        (OS_TCB                *p_tcb,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
@@ -2003,14 +1717,14 @@ OS_SEM_CTR    OSTaskSemSet              (OS_TCB                *p_tcb,
                                          OS_SEM_CTR             cnt,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_STAT_TASK_STK_CHK_EN == DEF_ENABLED)
+#if (OS_CFG_STAT_TASK_STK_CHK_EN > 0u)
 void          OSTaskStkChk              (OS_TCB                *p_tcb,
                                          CPU_STK_SIZE          *p_free,
                                          CPU_STK_SIZE          *p_used,
                                          OS_ERR                *p_err);
 #endif
 
-#if (OS_CFG_TASK_STK_REDZONE_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_STK_REDZONE_EN > 0u)
 CPU_BOOLEAN   OSTaskStkRedzoneChk       (OS_TCB                *p_tcb);
 #endif
 
@@ -2018,7 +1732,7 @@ CPU_BOOLEAN   OSTaskStkRedzoneChk       (OS_TCB                *p_tcb);
 void          OSSafetyCriticalStart     (void);
 #endif
 
-#if (OS_CFG_SCHED_ROUND_ROBIN_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_ROUND_ROBIN_EN > 0u)
 void          OSTaskTimeQuantaSet       (OS_TCB                *p_tcb,
                                          OS_TICK                time_quanta,
                                          OS_ERR                *p_err);
@@ -2029,7 +1743,7 @@ void          OSTaskTimeQuantaSet       (OS_TCB                *p_tcb,
 void          OS_TaskBlock              (OS_TCB                *p_tcb,
                                          OS_TICK                timeout);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_TaskDbgListAdd         (OS_TCB                *p_tcb);
 
 void          OS_TaskDbgListRemove      (OS_TCB                *p_tcb);
@@ -2039,36 +1753,14 @@ void          OS_TaskInit               (OS_ERR                *p_err);
 
 void          OS_TaskInitTCB            (OS_TCB                *p_tcb);
 
-void          OS_TaskQPost              (OS_TCB                *p_tcb,
-                                         void                  *p_void,
-                                         OS_MSG_SIZE            msg_size,
-                                         OS_OPT                 opt,
-                                         CPU_TS                 ts,
-                                         OS_ERR                *p_err);
-
-#if (OS_CFG_TASK_SUSPEND_EN == DEF_ENABLED)
-void          OS_TaskResume             (OS_TCB                *p_tcb,
-                                         OS_ERR                *p_err);
-#endif
-
 void          OS_TaskReturn             (void);
 
-OS_SEM_CTR    OS_TaskSemPost            (OS_TCB                *p_tcb,
-                                         OS_OPT                 opt,
-                                         CPU_TS                 ts,
-                                         OS_ERR                *p_err);
-
-#if (OS_CFG_TASK_STK_REDZONE_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_STK_REDZONE_EN > 0u)
 CPU_BOOLEAN   OS_TaskStkRedzoneChk      (CPU_STK               *p_base,
                                          CPU_STK_SIZE           stk_size);
 
 void          OS_TaskStkRedzoneInit     (CPU_STK               *p_base,
                                          CPU_STK_SIZE           stk_size);
-#endif
-
-#if (OS_CFG_TASK_SUSPEND_EN == DEF_ENABLED)
-void          OS_TaskSuspend            (OS_TCB                *p_tcb,
-                                         OS_ERR                *p_err);
 #endif
 
 void          OS_TaskChangePrio(         OS_TCB                *p_tcb,
@@ -2083,7 +1775,7 @@ void          OSTimeDly                 (OS_TICK                dly,
                                          OS_OPT                 opt,
                                          OS_ERR                *p_err);
 
-#if (OS_CFG_TIME_DLY_HMSM_EN == DEF_ENABLED)
+#if (OS_CFG_TIME_DLY_HMSM_EN > 0u)
 void          OSTimeDlyHMSM             (CPU_INT16U             hours,
                                          CPU_INT16U             minutes,
                                          CPU_INT16U             seconds,
@@ -2092,7 +1784,7 @@ void          OSTimeDlyHMSM             (CPU_INT16U             hours,
                                          OS_ERR                *p_err);
 #endif
 
-#if (OS_CFG_TIME_DLY_RESUME_EN == DEF_ENABLED)
+#if (OS_CFG_TIME_DLY_RESUME_EN > 0u)
 void          OSTimeDlyResume           (OS_TCB                *p_tcb,
                                          OS_ERR                *p_err);
 #endif
@@ -2103,14 +1795,17 @@ void          OSTimeSet                 (OS_TICK                ticks,
                                          OS_ERR                *p_err);
 
 void          OSTimeTick                (void);
+
+#if (OS_CFG_DYN_TICK_EN > 0u)
 void          OSTimeDynTick             (OS_TICK                ticks);
+#endif
 
 
 /* ================================================================================================================== */
 /*                                                 TIMER MANAGEMENT                                                   */
 /* ================================================================================================================== */
 
-#if (OS_CFG_TMR_EN == DEF_ENABLED)
+#if (OS_CFG_TMR_EN > 0u)
 void          OSTmrCreate               (OS_TMR                *p_tmr,
                                          CPU_CHAR              *p_name,
                                          OS_TICK                dly,
@@ -2123,7 +1818,7 @@ void          OSTmrCreate               (OS_TMR                *p_tmr,
 CPU_BOOLEAN   OSTmrDel                  (OS_TMR                *p_tmr,
                                          OS_ERR                *p_err);
 
-void          OSTmrSet (                 OS_TMR                *p_tmr,
+void          OSTmrSet                  (OS_TMR                *p_tmr,
                                          OS_TICK                dly,
                                          OS_TICK                period,
                                          OS_TMR_CALLBACK_PTR    p_callback,
@@ -2148,7 +1843,7 @@ CPU_BOOLEAN   OSTmrStop                 (OS_TMR                *p_tmr,
 
 void          OS_TmrClr                 (OS_TMR                *p_tmr);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_TmrDbgListAdd          (OS_TMR                *p_tmr);
 
 void          OS_TmrDbgListRemove       (OS_TMR                *p_tmr);
@@ -2157,9 +1852,10 @@ void          OS_TmrDbgListRemove       (OS_TMR                *p_tmr);
 void          OS_TmrInit                (OS_ERR                *p_err);
 
 void          OS_TmrLink                (OS_TMR                *p_tmr,
-                                         OS_OPT                 opt);
+                                         OS_TICK                time);
 
-void          OS_TmrUnlink              (OS_TMR                *p_tmr);
+void          OS_TmrUnlink              (OS_TMR                *p_tmr,
+                                         OS_TICK                time);
 
 void          OS_TmrTask                (void                  *p_arg);
 
@@ -2205,7 +1901,7 @@ void          OSInit                    (OS_ERR                *p_err);
 void          OSIntEnter                (void);
 void          OSIntExit                 (void);
 
-#if (OS_CFG_SCHED_ROUND_ROBIN_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_ROUND_ROBIN_EN > 0u)
 void          OSSchedRoundRobinCfg      (CPU_BOOLEAN            en,
                                          OS_TICK                dflt_time_quanta,
                                          OS_ERR                *p_err);
@@ -2221,7 +1917,7 @@ void          OSSchedUnlock             (OS_ERR                *p_err);
 
 void          OSStart                   (OS_ERR                *p_err);
 
-#if (OS_CFG_STAT_TASK_EN == DEF_ENABLED)
+#if (OS_CFG_STAT_TASK_EN > 0u)
 void          OSStatReset               (OS_ERR                *p_err);
 
 void          OSStatTaskCPUUsageInit    (OS_ERR                *p_err);
@@ -2235,15 +1931,14 @@ void          OS_IdleTask               (void                  *p_arg);
 
 void          OS_IdleTaskInit           (OS_ERR                *p_err);
 
-#if (OS_CFG_STAT_TASK_EN == DEF_ENABLED)
+#if (OS_CFG_STAT_TASK_EN > 0u)
 void          OS_StatTask               (void                  *p_arg);
 #endif
 
 void          OS_StatTaskInit           (OS_ERR                *p_err);
 
-void          OS_TickTask               (void                  *p_arg);
-void          OS_TickTaskInit           (OS_ERR                *p_err);
-
+void          OS_TickInit               (OS_ERR                *p_err);
+void          OS_TickUpdate             (OS_TICK                ticks);
 
 /*
 ************************************************************************************************************************
@@ -2253,15 +1948,11 @@ void          OS_TickTaskInit           (OS_ERR                *p_err);
 ************************************************************************************************************************
 */
 
-#ifdef __cplusplus
-extern  "C" {
-#endif
-
 void          OSIdleTaskHook            (void);
 
 void          OSInitHook                (void);
 
-#if (OS_CFG_TASK_STK_REDZONE_EN == DEF_ENABLED)
+#if (OS_CFG_TASK_STK_REDZONE_EN > 0u)
 void          OSRedzoneHitHook          (OS_TCB                *p_tcb);
 #endif
 
@@ -2284,10 +1975,6 @@ void          OSTaskSwHook              (void);
 
 void          OSTimeTickHook            (void);
 
-#ifdef __cplusplus
-}
-#endif
-
 
 /*
 ************************************************************************************************************************
@@ -2299,27 +1986,10 @@ void          OSTimeTickHook            (void);
 
 void          OSCfg_Init                (void);
 
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_Dbg_Init               (void);
 #endif
 
-
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)
-void          OS_IntQTaskInit           (OS_ERR                *p_err);
-
-void          OS_IntQPost               (OS_OBJ_TYPE            type,
-                                         void                  *p_obj,
-                                         void                  *p_void,
-                                         OS_MSG_SIZE            msg_size,
-                                         OS_FLAGS               flags,
-                                         OS_OPT                 opt,
-                                         CPU_TS                 ts,
-                                         OS_ERR                *p_err);
-
-void          OS_IntQRePost             (void);
-
-void          OS_IntQTask               (void                  *p_arg);
-#endif
 
 /* ----------------------------------------------- MESSAGE MANAGEMENT ----------------------------------------------- */
 
@@ -2344,39 +2014,21 @@ void          OS_MsgQPut                (OS_MSG_Q              *p_msg_q,
 
 /* ---------------------------------------------- PEND/POST MANAGEMENT ---------------------------------------------- */
 
-void          OS_Pend                   (OS_PEND_DATA          *p_pend_data,
-                                         OS_PEND_OBJ           *p_obj,
+void          OS_Pend                   (OS_PEND_OBJ           *p_obj,
+                                         OS_TCB                *p_tcb,
                                          OS_STATE               pending_on,
                                          OS_TICK                timeout);
 
-void          OS_PendAbort              (OS_PEND_OBJ           *p_obj,
-                                         OS_TCB                *p_tcb,
-                                         CPU_TS                 ts);
-#if (OS_CFG_PEND_MULTI_EN == DEF_ENABLED)
-void          OS_PendAbort1             (OS_PEND_OBJ           *p_obj,
-                                         OS_TCB                *p_tcb,
-                                         CPU_TS                 ts);
-#endif
-void          OS_PendObjDel             (OS_PEND_OBJ           *p_obj,
-                                         OS_TCB                *p_tcb,
-                                         CPU_TS                 ts);
-#if (OS_CFG_PEND_MULTI_EN == DEF_ENABLED)
-void          OS_PendObjDel1            (OS_PEND_OBJ           *p_obj,
-                                         OS_TCB                *p_tcb,
-                                         CPU_TS                 ts);
-#endif
+void          OS_PendAbort              (OS_TCB                *p_tcb,
+                                         CPU_TS                 ts,
+                                         OS_STATUS              reason);
+
 void          OS_Post                   (OS_PEND_OBJ           *p_obj,
                                          OS_TCB                *p_tcb,
                                          void                  *p_void,
                                          OS_MSG_SIZE            msg_size,
                                          CPU_TS                 ts);
-#if (OS_CFG_PEND_MULTI_EN == DEF_ENABLED)
-void          OS_Post1                  (OS_PEND_OBJ           *p_obj,
-                                         OS_TCB                *p_tcb,
-                                         void                  *p_void,
-                                         OS_MSG_SIZE            msg_size,
-                                         CPU_TS                 ts);
-#endif
+
 /* ----------------------------------------------- PRIORITY MANAGEMENT ---------------------------------------------- */
 
 void          OS_PrioInit               (void);
@@ -2389,16 +2041,12 @@ OS_PRIO       OS_PrioGetHighest         (void);
 
 /* --------------------------------------------------- SCHEDULING --------------------------------------------------- */
 
-#if (OS_CFG_ISR_POST_DEFERRED_EN == DEF_ENABLED)
-void          OS_Sched0                 (void);
-#endif
-
-#if (OS_CFG_SCHED_LOCK_TIME_MEAS_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_LOCK_TIME_MEAS_EN > 0u)
 void          OS_SchedLockTimeMeasStart (void);
 void          OS_SchedLockTimeMeasStop  (void);
 #endif
 
-#if (OS_CFG_SCHED_ROUND_ROBIN_EN == DEF_ENABLED)
+#if (OS_CFG_SCHED_ROUND_ROBIN_EN > 0u)
 void          OS_SchedRoundRobin        (OS_RDY_LIST           *p_rdy_list);
 #endif
 
@@ -2418,11 +2066,7 @@ void          OS_RdyListRemove          (OS_TCB                *p_tcb);
 
 /* ---------------------------------------------- PEND LIST MANAGEMENT ---------------------------------------------- */
 
-void          OS_PendDataInit           (OS_TCB                *p_tcb,
-                                         OS_PEND_DATA          *p_pend_data_tbl,
-                                         OS_OBJ_QTY             tbl_size);
-
-#if (OS_CFG_DBG_EN == DEF_ENABLED)
+#if (OS_CFG_DBG_EN > 0u)
 void          OS_PendDbgNameAdd         (OS_PEND_OBJ           *p_obj,
                                          OS_TCB                *p_tcb);
 
@@ -2430,27 +2074,20 @@ void          OS_PendDbgNameRemove      (OS_PEND_OBJ           *p_obj,
                                          OS_TCB                *p_tcb);
 #endif
 
-OS_PEND_LIST *OS_PendListGetPtr         (OS_PEND_OBJ           *p_obj);
-
 void          OS_PendListInit           (OS_PEND_LIST          *p_pend_list);
 
-void          OS_PendListInsertHead     (OS_PEND_LIST          *p_pend_list,
-                                         OS_PEND_DATA          *p_pend_data);
-
 void          OS_PendListInsertPrio     (OS_PEND_LIST          *p_pend_list,
-                                         OS_PEND_DATA          *p_pend_data);
+                                         OS_TCB                *p_tcb);
 
 void          OS_PendListChangePrio     (OS_TCB                *p_tcb);
 
 void          OS_PendListRemove         (OS_TCB                *p_tcb);
 
-void          OS_PendListRemove1        (OS_PEND_LIST          *p_pend_list,
-                                         OS_PEND_DATA          *p_pend_data);
-
 /* ---------------------------------------------- TICK LIST MANAGEMENT ---------------------------------------------- */
-#if (OS_CFG_TASK_TICK_EN == DEF_ENABLED)
-void          OS_TickListInsert         (OS_TICK_LIST          *p_list,
-                                         OS_TCB                *p_tcb,
+#if (OS_CFG_TICK_EN > 0u)
+CPU_BOOLEAN   OS_TickListInsert         (OS_TCB                *p_tcb,
+                                         OS_TICK                elapsed,
+                                         OS_TICK                tick_base,
                                          OS_TICK                time);
 
 void          OS_TickListInsertDly      (OS_TCB                *p_tcb,
@@ -2460,10 +2097,9 @@ void          OS_TickListInsertDly      (OS_TCB                *p_tcb,
 
 void          OS_TickListRemove         (OS_TCB                *p_tcb);
 
-#if (OS_CFG_DYN_TICK_EN == DEF_ENABLED)
-OS_TICK       BSP_OS_TickGet            (void);
-
-OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
+#if (OS_CFG_DYN_TICK_EN > 0u)                                   /* OS_DynTick functions must be implemented in the BSP. */
+OS_TICK       OS_DynTickGet             (void);
+OS_TICK       OS_DynTickSet             (OS_TICK                ticks);
 #endif
 #endif
 
@@ -2511,28 +2147,27 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 #endif
 
 
-#ifndef OS_CFG_PEND_MULTI_EN
-#error  "OS_CFG.H, Missing OS_CFG_PEND_MULTI_EN: Enable (1) or Disable (0) multi-pend feature"
-#endif
-
-
 #if     OS_CFG_PRIO_MAX < 8u
-#error  "OS_CFG.H,         OS_CFG_PRIO_MAX must be >= 8"
+#error  "OS_CFG.H, OS_CFG_PRIO_MAX must be >= 8"
 #endif
 
 
 #ifndef OS_CFG_SCHED_LOCK_TIME_MEAS_EN
 #error  "OS_CFG.H, Missing OS_CFG_SCHED_LOCK_TIME_MEAS_EN: Include code to measure scheduler lock time"
 #else
-    #if    (OS_CFG_SCHED_LOCK_TIME_MEAS_EN == DEF_ENABLED) && \
-           (OS_CFG_TS_EN                   == DEF_DISABLED)
-    #error  "OS_CFG.H,         OS_CFG_TS_EN must be Enabled (1) to measure scheduler lock time"
+    #if    (OS_CFG_SCHED_LOCK_TIME_MEAS_EN  > 0u) && \
+           (OS_CFG_TS_EN                   == 0u)
+    #error  "OS_CFG.H, OS_CFG_TS_EN must be Enabled (1) to measure scheduler lock time"
     #endif
 #endif
 
 
 #ifndef OS_CFG_SCHED_ROUND_ROBIN_EN
 #error  "OS_CFG.H, Missing OS_CFG_SCHED_ROUND_ROBIN_EN: Include code for Round Robin Scheduling"
+#else
+    #if (OS_CFG_SCHED_ROUND_ROBIN_EN > 0u) && (OS_CFG_DYN_TICK_EN > 0u)
+    #error "OS_CFG.H, OS_CFG_DYN_TICK_EN must be Disabled (0) to use Round Robin scheduling."
+    #endif
 #endif
 
 
@@ -2543,8 +2178,8 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 #ifndef OS_CFG_TS_EN
 #error  "OS_CFG.H, Missing OS_CFG_TS_EN: Determines whether time stamping is enabled"
 #else
-    #if    (OS_CFG_TS_EN  == DEF_ENABLED) && \
-           (CPU_CFG_TS_EN == DEF_DISABLED)
+    #if    (OS_CFG_TS_EN   > 0u) && \
+           (CPU_CFG_TS_EN == 0u)
     #error  "CPU_CFG.H,        CPU_CFG_TS_32_EN must be Enabled (1) to use time stamp feature"
     #endif
 #endif
@@ -2676,9 +2311,9 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 #ifndef OS_CFG_TASK_PROFILE_EN
 #error  "OS_CFG.H, Missing OS_CFG_TASK_PROFILE_EN: Include code for task profiling"
 #else
-#if    (OS_CFG_TASK_PROFILE_EN == DEF_ENABLED) && \
-       (OS_CFG_TASK_IDLE_EN == DEF_DISABLED)
-#error  "OS_CFG.H,         OS_CFG_TASK_IDLE_EN must be Enabled (1) to use the task profiling feature"
+#if    (OS_CFG_TASK_PROFILE_EN  > 0u) && \
+       (OS_CFG_TASK_IDLE_EN    == 0u)
+#error  "OS_CFG.H, OS_CFG_TASK_IDLE_EN must be Enabled (1) to use the task profiling feature"
 #endif
 #endif
 
@@ -2692,6 +2327,24 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 
 #ifndef OS_CFG_TASK_SUSPEND_EN
 #error  "OS_CFG.H, Missing OS_CFG_TASK_SUSPEND_EN: Include code for OSTaskSuspend() and OSTaskResume()"
+#endif
+
+/*
+************************************************************************************************************************
+*                                                  TICK MANAGEMENT
+************************************************************************************************************************
+*/
+
+#ifndef OS_CFG_TICK_EN
+#error  "OS_CFG.H, Missing OS_CFG_TICK_EN: Enable (1) or Disable (0) the kernel tick"
+#else
+    #if ((OS_CFG_TICK_EN > 0u) && (OS_CFG_TICK_RATE_HZ == 0u))
+    #error "OS_CFG_APP.h, OS_CFG_TICK_RATE_HZ must be > 0"
+    #endif
+
+    #if ((OS_CFG_TICK_EN == 0u) && (OS_CFG_DYN_TICK_EN > 0u))
+    #error "OS_CFG.H, OS_CFG_TICK_EN must be Enabled (1) to use the dynamic tick feature"
+    #endif
 #endif
 
 /*
@@ -2717,9 +2370,49 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 #ifndef OS_CFG_TMR_EN
 #error  "OS_CFG.H, Missing OS_CFG_TMR_EN: When (1) enables code generation for Timer Management"
 #else
+#if (OS_CFG_TMR_EN > 0u)
+    #if (OS_CFG_TICK_EN == 0u)
+    #error "OS_CFG.H, OS_CFG_TICK_EN must be Enabled (1) to use the timer feature"
+    #endif
+
+    #if (OS_CFG_MUTEX_EN == 0u)
+    #error "OS_CFG.H, OS_CFG_MUTEX_EN must be Enabled (1) to use the timer feature"
+    #endif
+
+    #if (OS_CFG_TMR_TASK_RATE_HZ == 0u)
+    #error "OS_CFG_APP.h, OS_CFG_TMR_TASK_RATE_HZ must be > 0"
+    #endif
+
+    #if (OS_CFG_TICK_RATE_HZ < OS_CFG_TMR_TASK_RATE_HZ)
+    #error "OS_CFG_APP.h, OS_CFG_TICK_RATE_HZ must be >= OS_CFG_TMR_TASK_RATE_HZ"
+    #endif
+
     #ifndef OS_CFG_TMR_DEL_EN
     #error  "OS_CFG.H, Missing OS_CFG_TMR_DEL_EN: Enables (1) or Disables (0) code for OSTmrDel()"
     #endif
+#endif
+#endif
+
+/*
+************************************************************************************************************************
+*                                                       TRACE
+************************************************************************************************************************
+*/
+
+#ifndef OS_CFG_TRACE_EN
+#error  "OS_CFG.H, Missing OS_CFG_TRACE_EN: When (1) enables kernel events recording for Trace Analysis"
+#else
+    #if (OS_CFG_TRACE_EN > 0u) && (OS_CFG_DBG_EN == 0u)
+    #error "OS_CFG.H, OS_CFG_DBG_EN must be enabled to use the trace feature"
+    #endif
+#endif
+
+#ifndef OS_CFG_TRACE_API_ENTER_EN
+#error  "OS_CFG.H, Missing OS_CFG_TRACE_API_ENTER_EN: Enables (1) or Disables (0) the recording of the kernel API entry events for Trace Analysis"
+#endif
+
+#ifndef OS_CFG_TRACE_API_EXIT_EN
+#error  "OS_CFG.H, Missing OS_CFG_TRACE_API_EXIT_EN: Enables (1) or Disables (0) the recording of the kernel API exit events for Trace Analysis"
 #endif
 
 /*
@@ -2729,14 +2422,8 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 */
 
                                                                 /* See 'os.h  Note #1a'.                              */
-#if LIB_VERSION < 13801u
-#error  "lib_def.h, LIB_VERSION SHOULD be >= V1.38.01"
-#endif
-
-
-                                                                /* See 'os.h  Note #1b'.                              */
-#if CPU_CORE_VERSION < 13002u
-#error  "cpu_core.h, CPU_CORE_VERSION SHOULD be >= V1.30.02"
+#if CPU_CORE_VERSION < 13103u
+#error  "cpu_def.h, CPU_CORE_VERSION SHOULD be >= V1.31.03"
 #endif
 
 
@@ -2746,4 +2433,7 @@ OS_TICK       BSP_OS_TickNextSet        (OS_TICK                ticks);
 ************************************************************************************************************************
 */
 
+#ifdef __cplusplus
+}
+#endif
 #endif

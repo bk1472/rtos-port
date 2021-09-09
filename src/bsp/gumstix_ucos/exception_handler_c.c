@@ -17,13 +17,11 @@
 *******************************************************************************/
 
 /*---------------------------------------------------------
-    전역 제어 상수 정의
     (Global Control Constant Definitions)
 ---------------------------------------------------------*/
 #define __DEBUGGING_STATE__
 
 /*---------------------------------------------------------
-    #include 파일들
     (File Inclusions)
 ---------------------------------------------------------*/
 #include <common.h>
@@ -32,23 +30,19 @@
 #include "exception.h"
 
 /*---------------------------------------------------------
-    상수 정의
     (Constant Definitions)
 ---------------------------------------------------------*/
 /*---------------------------------------------------------
-    형 정의
     (Type Definitions)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    Extern 전역변수와 함수 prototype 선언
     (Extern Variables & Function Prototype Declarations)
 ---------------------------------------------------------*/
 extern void OS_CPU_IRQ_ISR(void);
 extern void OS_CPU_FIQ_ISR(void);
 
 /*---------------------------------------------------------
-    Static 변수와 함수 prototype 선언
     (Static Variables & Function Prototypes Declarations)
 ---------------------------------------------------------*/
 static void		excRSVDerr(void);
@@ -74,7 +68,6 @@ static EXC_TBL	excEnterTbl[NUM_EXC_VECS] =
 };
 
 /*---------------------------------------------------------
-    전역 변수와 함수 prototype 선언
     (Variables & Function Prototypes Declarations)
 ---------------------------------------------------------*/
 int							exception_vector_init (void);
@@ -127,7 +120,7 @@ void excExcContinue
 
     cpu_sr = 0;                                            /* Prevent compiler warning                 */
 
-	OS_CRITICAL_ENTER();
+	CPU_CRITICAL_ENTER();
 	intContextEnter();
 	setIntNum(0xff);
 
@@ -137,10 +130,6 @@ void excExcContinue
 	if (pRegs->pc == 0)
 		vec = pEsf->vecAddr = EXC_OFF_RESET;
 
-	/**
-	 * Code 삽입 해야 함....
-	 * MMU mapped 된 영역이면서 break point code 일 때.
-	 */
 	exception_count_all++;
 	if (0 == code_mode && vec != EXC_OFF_SWI)
 	{
@@ -173,7 +162,7 @@ void excExcContinue
 	pExcRegList = NULL;
 
 	intContextExit();
-	OS_CRITICAL_EXIT();
+	CPU_CRITICAL_EXIT();
 
 	return;
 }
@@ -209,9 +198,7 @@ static void excExcHandle
 	excInfo.vecAddr = pEsf->vecAddr;
 	excInfo.pc      = pRegs->pc;
 	excInfo.cpsr    = pRegs->cpsr;
-	/**
-	 * Break point 기능이 있을 때는 기능 추가.
-	 */
+
 	uCosExcHandle(vec, pEsf, pRegs, &excInfo);
 }
 

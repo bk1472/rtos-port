@@ -17,12 +17,10 @@
 *******************************************************************************/
 
 /*---------------------------------------------------------
-    전역 제어 상수 정의
     (Global Control Constant Definitions)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    #include 파일들
     (File Inclusions)
 ---------------------------------------------------------*/
 #include <common.h>
@@ -30,7 +28,6 @@
 #include <osadap.h>
 
 /*---------------------------------------------------------
-    상수 정의
     (Constant Definitions)
 ---------------------------------------------------------*/
 #define MAX_ISR_COUNT		(TOTAL_INT_COUNT) /*defined at pxa255.h*/
@@ -38,7 +35,6 @@
 #define FIQ_MODE			(1)
 
 /*---------------------------------------------------------
-    형 정의
     (Type Definitions)
 ---------------------------------------------------------*/
 typedef struct ISR_STR
@@ -60,17 +56,14 @@ typedef struct
 } VEC_ENTRY;
 
 /*---------------------------------------------------------
-    Extern 전역변수와 함수 prototype 선언
     (Extern Variables & Function Prototype Declarations)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    전역 변수와 함수 prototype 선언
     (Variables & Function Prototypes Declarations)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    Static 변수와 함수 prototype 선언
     (Static Variables & Function Prototypes Declarations)
 ---------------------------------------------------------*/
 static volatile		ISR_STR_T	*VIC           = (volatile ISR_STR_T *)IC_BASE;
@@ -112,9 +105,9 @@ void intConnect(int intVector, PFNCT isr, int arg, char *name)
 	if (intVector >= MAX_ISR_COUNT)
 		return;
 
-    OS_CRITICAL_ENTER();
+    CPU_CRITICAL_ENTER();
 	int_connect(&intVecTable[intVector], isr, arg, name);
-    OS_CRITICAL_EXIT();
+    CPU_CRITICAL_EXIT();
 }
 
 int intEnable(int intVector)
@@ -124,11 +117,11 @@ int intEnable(int intVector)
 	if (intVector >= MAX_ISR_COUNT)
 		return -1;
 
-    OS_CRITICAL_ENTER();
+    CPU_CRITICAL_ENTER();
 	VIC->iccr  = 0x01;
 	VIC->iclr &= ~(1 << intVector); // IC level register set to IRQ mode
 	VIC->icmr |=  (1 << intVector); // IC Mask Register set for enabling interrupt
-    OS_CRITICAL_EXIT();
+    CPU_CRITICAL_EXIT();
 
 	return 0;
 }
@@ -140,11 +133,11 @@ int intDisable(int intVector)
 	if (intVector >= MAX_ISR_COUNT)
 		return -1;
 
-    OS_CRITICAL_ENTER();
+    CPU_CRITICAL_ENTER();
 	VIC->iccr  = 0x01;
 	VIC->iclr &= ~(1 << intVector); // IC level register set to IRQ mode
 	VIC->icmr &= ~(1 << intVector); // IC Mask Register reset for disabling interrupt
-    OS_CRITICAL_EXIT();
+    CPU_CRITICAL_EXIT();
 
 	return 0;
 }
@@ -271,11 +264,11 @@ void OS_CPU_IRQ_ISR_Handler(void)
 {
     CPU_SR  cpu_sr;
 
-    OS_CRITICAL_ENTER();
+    CPU_CRITICAL_ENTER();
 
 	interrupt_process(IRQ_MODE);
 
-	OS_CRITICAL_EXIT();
+	CPU_CRITICAL_EXIT();
 }
 
 /**
@@ -285,11 +278,11 @@ void OS_CPU_FIQ_ISR_Handler(void)
 {
     CPU_SR  cpu_sr;
 
-    OS_CRITICAL_ENTER();
+    CPU_CRITICAL_ENTER();
 
 	interrupt_process(FIQ_MODE);
 
-	OS_CRITICAL_EXIT();
+	CPU_CRITICAL_EXIT();
 }
 
 int intLock (void)
