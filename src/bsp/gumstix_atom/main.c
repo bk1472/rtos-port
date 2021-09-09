@@ -94,7 +94,7 @@ int main (void)
 
 	board_init(115200);
 
-	pollPrint("\x1b[35mStart Atomthreads\x1b[0m\n");
+	pollPrint("\x1b[35mStart Atomthreads(v1.3)\x1b[0m\n");
 
 	status = atomOSInit(&idle_thread_stack[0], IDLE_STACK_SIZE_BYTES, TRUE);
 	if(ATOM_OK== status)

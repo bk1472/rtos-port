@@ -333,6 +333,13 @@ void atomSched (uint8_t timer_tick)
 static void atomThreadSwitch(ATOM_TCB *old_tcb, ATOM_TCB *new_tcb)
 {
     /**
+     * The context switch will shift execution to a different thread. The
+     * new thread is now ready to run so clear its suspend status in
+     * preparation for it waking up.
+     */
+    new_tcb->suspended = FALSE;
+
+    /**
      * Check if the new thread is actually the current one, in which
      * case we don't need to do any context switch. This can happen
      * if a thread goes into suspend but is unsuspended again before
@@ -343,13 +350,6 @@ static void atomThreadSwitch(ATOM_TCB *old_tcb, ATOM_TCB *new_tcb)
         /* Set the new currently-running thread pointer */
         curr_tcb = new_tcb;
 
-        /**
-         * The context switch will shift execution to a different thread. The
-         * new thread is now ready to run so clear its suspend status in
-         * preparation for it waking up.
-         */
-        new_tcb->suspended = FALSE;
-
         /* Call the architecture-specific context switch */
         archContextSwitch (old_tcb, new_tcb);
     }
@@ -357,7 +357,7 @@ static void atomThreadSwitch(ATOM_TCB *old_tcb, ATOM_TCB *new_tcb)
 
 
 /**
- * \b atomThreadCreate_ext
+ * \b atomThreadCreate
  *
  * Creates and starts a new thread.
  *
@@ -379,7 +379,6 @@ static void atomThreadSwitch(ATOM_TCB *old_tcb, ATOM_TCB *new_tcb)
  * @param[in] stack_bottom Bottom of the stack area
  * @param[in] stack_size Size of the stack area in bytes
  * @param[in] stack_check TRUE to enable stack checking for this thread
- * @param[in] name thread's name pointer
  *
  * @retval ATOM_OK Success
  * @retval ATOM_ERR_PARAM Bad parameters
@@ -405,6 +404,7 @@ uint8_t atomThreadCreate_ext (ATOM_TCB *tcb_ptr, uint8_t priority, void (*entry_
 
         /* Set up the TCB initial values */
         tcb_ptr->suspended = FALSE;
+        tcb_ptr->terminated = FALSE;
         tcb_ptr->priority = priority;
         tcb_ptr->prev_tcb = NULL;
         tcb_ptr->next_tcb = NULL;
