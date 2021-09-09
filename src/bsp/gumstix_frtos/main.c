@@ -17,12 +17,10 @@
 *******************************************************************************/
 
 /*---------------------------------------------------------
-    전역 제어 상수 정의
     (Global Control Constant Definitions)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    #include 파일들
     (File Inclusions)
 ---------------------------------------------------------*/
 #include <common.h>
@@ -33,17 +31,14 @@
 #include "exception.h"
 
 /*---------------------------------------------------------
-    상수 정의
     (Constant Definitions)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    형 정의
     (Type Definitions)
 ---------------------------------------------------------*/
 
 /*---------------------------------------------------------
-    Extern 전역변수와 함수 prototype 선언
     (Extern Variables & Function Prototype Declarations)
 ---------------------------------------------------------*/
 extern int		init_interrupt_manager			(void);
@@ -56,7 +51,6 @@ extern void		MMU_Enable						(MEM_MAP_T *);
 extern void		Cache_Enable					(void);
 
 /*---------------------------------------------------------
-    전역 변수와 함수 prototype 선언
     (Variables & Function Prototypes Declarations)
 ---------------------------------------------------------*/
 TaskHandle_t		RootTaskHandle;
@@ -71,7 +65,6 @@ MEM_MAP_T		mem_map[] =
 };
 
 /*---------------------------------------------------------
-    Static 변수와 함수 prototype 선언
     (Static Variables & Function Prototypes Declarations)
 ---------------------------------------------------------*/
 static void		RootTask						(void *p_arg);
@@ -93,7 +86,7 @@ int main (void)
 	extern int pollPrint(char *fmt, ...);
 	board_init(115200);
 
-	pollPrint("\x1b[35mstart FreeRTOS (v10.0.1)\x1b[0m\n");
+	pollPrint("\x1b[35mstart FreeRTOS (v10.4.3)\x1b[0m\n");
 
 	if(pdPASS != xTaskCreate(RootTask, "root", (uint16_t)0x800, NULL, 4, &RootTaskHandle))
 	{
